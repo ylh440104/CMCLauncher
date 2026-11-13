@@ -154,50 +154,11 @@ enum class CardPosition {
 @Composable
 fun rememberSettingsCardShape(
     position: CardPosition,
-    outerShape: Dp = 28.dp,
-    innerShape: Dp = 4.dp
+    outerShape: Dp = 20.dp,
+    innerShape: Dp = 20.dp
 ): Shape {
     return remember(position, outerShape, innerShape) {
-        when (position) {
-            CardPosition.Top -> RoundedCornerShape(
-                topStart = outerShape,
-                topEnd = outerShape,
-                bottomStart = innerShape,
-                bottomEnd = innerShape
-            )
-            CardPosition.TopStart -> RoundedCornerShape(
-                topStart = outerShape,
-                topEnd = innerShape,
-                bottomStart = innerShape,
-                bottomEnd = innerShape
-            )
-            CardPosition.TopEnd -> RoundedCornerShape(
-                topStart = innerShape,
-                topEnd = outerShape,
-                bottomStart = innerShape,
-                bottomEnd = innerShape
-            )
-            CardPosition.Middle -> RoundedCornerShape(innerShape)
-            CardPosition.Bottom -> RoundedCornerShape(
-                topStart = innerShape,
-                topEnd = innerShape,
-                bottomStart = outerShape,
-                bottomEnd = outerShape
-            )
-            CardPosition.BottomStart -> RoundedCornerShape(
-                topStart = innerShape,
-                topEnd = innerShape,
-                bottomStart = outerShape,
-                bottomEnd = innerShape
-            )
-            CardPosition.BottomEnd -> RoundedCornerShape(
-                topStart = innerShape,
-                topEnd = innerShape,
-                bottomStart = innerShape,
-                bottomEnd = outerShape
-            )
-            CardPosition.Single -> RoundedCornerShape(outerShape)
-        }
+        RoundedCornerShape(outerShape)
     }
 }
 
@@ -292,7 +253,7 @@ fun SettingsCardColumn(
 ) {
     Column(
         modifier = modifier,
-        verticalArrangement = Arrangement.spacedBy(2.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
         content = content
     )
 }

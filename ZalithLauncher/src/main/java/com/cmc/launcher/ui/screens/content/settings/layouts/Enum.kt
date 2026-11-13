@@ -22,8 +22,10 @@ import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
@@ -65,42 +67,50 @@ fun <E: Enum<E>> EnumSettingsCard(
         outerShape = outerShape,
         innerShape = innerShape
     ) {
-        Column(
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(all = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+                .height(IntrinsicSize.Min)
         ) {
-            TitleAndSummary(
-                title = title,
-                summary = summary,
-                titleStyle = titleStyle,
-                summaryStyle = summaryStyle
-            )
-            FlowRow(
+            CmcAccentBar(active = true)
+
+            Column(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .animateContentSize(animationSpec = getAnimateTween()),
-                horizontalArrangement = Arrangement.SpaceEvenly,
-                maxItemsInEachRow = maxItemsInEachRow
+                    .weight(1f)
+                    .padding(start = 14.dp, end = 14.dp, top = 14.dp, bottom = 14.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                entries.forEach { enum ->
-                    Row {
-                        val radioText = getRadioText(enum)
-                        RadioButton(
-                            enabled = getRadioEnable(enum),
-                            selected = value == enum,
-                            onClick = {
-                                onRadioClick(enum)
-                            }
-                        )
-                        Text(
-                            text = radioText,
-                            style = MaterialTheme.typography.labelMedium,
-                            modifier = Modifier
-                                .align(Alignment.CenterVertically)
-                                .alpha(alpha = if (getRadioEnable(enum)) 1f else DisabledAlpha)
-                        )
+                TitleAndSummary(
+                    title = title,
+                    summary = summary,
+                    titleStyle = titleStyle,
+                    summaryStyle = summaryStyle
+                )
+                FlowRow(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .animateContentSize(animationSpec = getAnimateTween()),
+                    horizontalArrangement = Arrangement.SpaceEvenly,
+                    maxItemsInEachRow = maxItemsInEachRow
+                ) {
+                    entries.forEach { enum ->
+                        Row {
+                            val radioText = getRadioText(enum)
+                            RadioButton(
+                                enabled = getRadioEnable(enum),
+                                selected = value == enum,
+                                onClick = {
+                                    onRadioClick(enum)
+                                }
+                            )
+                            Text(
+                                text = radioText,
+                                style = MaterialTheme.typography.labelMedium,
+                                modifier = Modifier
+                                    .align(Alignment.CenterVertically)
+                                    .alpha(alpha = if (getRadioEnable(enum)) 1f else DisabledAlpha)
+                            )
+                        }
                     }
                 }
             }

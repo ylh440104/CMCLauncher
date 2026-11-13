@@ -20,7 +20,10 @@ package com.cmc.launcher.ui.screens.content.settings.layouts
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -62,38 +65,46 @@ fun TextInputSettingsCard(
         outerShape = outerShape,
         innerShape = innerShape
     ) {
-        Column(
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(all = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp)
+                .height(IntrinsicSize.Min)
         ) {
-            TitleAndSummary(
-                title = title,
-                summary = summary,
-                titleStyle = titleStyle,
-                summaryStyle = summaryStyle
-            )
+            CmcAccentBar(active = value.isNotBlank())
 
-            SingleLineTextCheck(
-                text = value,
-                onSingleLined = onValueChange
-            )
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(start = 14.dp, end = 14.dp, top = 14.dp, bottom = 14.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                TitleAndSummary(
+                    title = title,
+                    summary = summary,
+                    titleStyle = titleStyle,
+                    summaryStyle = summaryStyle
+                )
 
-            OwnOutlinedTextField(
-                modifier = Modifier.fillMaxWidth(),
-                value = value,
-                textStyle = MaterialTheme.typography.labelMedium,
-                onValueChange = onValueChange,
-                isError = isError,
-                label = label,
-                supportingText = supportingText,
-                prefix = prefix,
-                suffix = suffix,
-                singleLine = singleLine,
-                minLines = minLines,
-                shape = MaterialTheme.shapes.large
-            )
+                SingleLineTextCheck(
+                    text = value,
+                    onSingleLined = onValueChange
+                )
+
+                OwnOutlinedTextField(
+                    modifier = Modifier.fillMaxWidth(),
+                    value = value,
+                    textStyle = MaterialTheme.typography.labelMedium,
+                    onValueChange = onValueChange,
+                    isError = isError,
+                    label = label,
+                    supportingText = supportingText,
+                    prefix = prefix,
+                    suffix = suffix,
+                    singleLine = singleLine,
+                    minLines = minLines,
+                    shape = MaterialTheme.shapes.large
+                )
+            }
         }
     }
 }

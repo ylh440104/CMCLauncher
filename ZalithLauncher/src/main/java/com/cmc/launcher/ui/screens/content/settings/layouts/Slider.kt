@@ -21,7 +21,10 @@ package com.cmc.launcher.ui.screens.content.settings.layouts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
@@ -73,40 +76,48 @@ fun IntSliderSettingsCard(
     ) {
         var showValueEditDialog by remember { mutableStateOf(false) }
 
-        Column(
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(all = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp)
+                .height(IntrinsicSize.Min)
         ) {
+            CmcAccentBar(active = enabled)
+
             Column(
-                modifier = Modifier.alpha(alpha = if (enabled) 1f else DisabledAlpha)
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(start = 14.dp, end = 14.dp, top = 14.dp, bottom = 14.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                TitleAndSummary(
-                    title = title,
-                    summary = summary,
-                    titleStyle = titleStyle,
-                    summaryStyle = summaryStyle
+                Column(
+                    modifier = Modifier.alpha(alpha = if (enabled) 1f else DisabledAlpha)
+                ) {
+                    TitleAndSummary(
+                        title = title,
+                        summary = summary,
+                        titleStyle = titleStyle,
+                        summaryStyle = summaryStyle
+                    )
+                }
+                SimpleTextSlider(
+                    modifier = Modifier.fillMaxWidth(),
+                    value = value.toFloat(),
+                    shorter = shorter,
+                    enabled = enabled,
+                    onValueChange = { onValueChange(it.toInt()) },
+                    onValueChangeFinished = { onValueChangeFinished() },
+                    onTextClick = { showValueEditDialog = true },
+                    toInt = true,
+                    valueRange = valueRange,
+                    steps = steps,
+                    suffix = suffix,
+                    fineTuningControl = fineTuningControl,
+                    fineTuningStep = 1f,
+                    valueText = valueText,
+                    appendContent = appendContent
                 )
+                previewContent()
             }
-            SimpleTextSlider(
-                modifier = Modifier.fillMaxWidth(),
-                value = value.toFloat(),
-                shorter = shorter,
-                enabled = enabled,
-                onValueChange = { onValueChange(it.toInt()) },
-                onValueChangeFinished = { onValueChangeFinished() },
-                onTextClick = { showValueEditDialog = true },
-                toInt = true,
-                valueRange = valueRange,
-                steps = steps,
-                suffix = suffix,
-                fineTuningControl = fineTuningControl,
-                fineTuningStep = 1f,
-                valueText = valueText,
-                appendContent = appendContent
-            )
-            previewContent()
         }
 
         if (showValueEditDialog) {

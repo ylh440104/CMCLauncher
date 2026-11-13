@@ -20,9 +20,11 @@ package com.cmc.launcher.ui.screens.content.settings.layouts
 
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
@@ -42,7 +44,7 @@ fun SwitchSettingsCard(
     title: String,
     position: CardPosition,
     modifier: Modifier = Modifier,
-    outerShape: Dp = 28.dp,
+    outerShape: Dp = 20.dp,
     innerShape: Dp = 4.dp,
     summary: String? = null,
     enabled: Boolean = true,
@@ -60,42 +62,50 @@ fun SwitchSettingsCard(
         onClick = { onCheckedChange(!checked) },
         enabled = enabled
     ) {
-        Column(
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(all = 16.dp),
+                .height(IntrinsicSize.Min)
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = verticalAlignment
+            CmcAccentBar(active = checked)
+
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(start = 14.dp, end = 14.dp, top = 14.dp, bottom = 14.dp)
             ) {
-                Column(
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(end = 16.dp)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = verticalAlignment
                 ) {
-                    TitleAndSummary(
-                        title = title,
-                        summary = summary,
-                        titleStyle = titleStyle,
-                        summaryStyle = summaryStyle
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(end = 16.dp)
+                    ) {
+                        TitleAndSummary(
+                            title = title,
+                            summary = summary,
+                            titleStyle = titleStyle,
+                            summaryStyle = summaryStyle
+                        )
+                    }
+
+                    Row(
+                        verticalAlignment = verticalAlignment
+                    ) {
+                        trailingIcon?.invoke(this)
+                    }
+
+                    DefaultSwitch(
+                        checked = checked,
+                        enabled = enabled,
+                        onCheckedChange = { value -> onCheckedChange(value) }
                     )
                 }
 
-                Row(
-                    verticalAlignment = verticalAlignment
-                ) {
-                    trailingIcon?.invoke(this)
-                }
-
-                DefaultSwitch(
-                    checked = checked,
-                    enabled = enabled,
-                    onCheckedChange = { value -> onCheckedChange(value) }
-                )
+                columnLayout?.invoke(this@Column)
             }
-
-            columnLayout?.invoke(this@Column)
         }
     }
 }
