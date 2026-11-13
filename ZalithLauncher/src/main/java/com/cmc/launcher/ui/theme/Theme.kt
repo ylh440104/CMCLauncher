@@ -40,7 +40,10 @@ import com.materialkolor.dynamicColorScheme
 import com.cmc.launcher.setting.AllSettings
 import com.cmc.launcher.setting.enums.isLauncherInDarkTheme
 import com.cmc.launcher.ui.theme.components.activeMaskView
+import com.cmc.launcher.ui.theme.cmc.Cmc
 import com.cmc.launcher.ui.theme.cmc.CmcShapes
+import top.yukonga.miuix.kmp.theme.MiuixTheme
+import androidx.compose.ui.graphics.Color
 import com.cmc.launcher.ui.theme.cmc.cmcBrand
 import com.cmc.launcher.utils.festival.Festival
 import com.cmc.launcher.utils.festival.LocalFestivals
@@ -679,12 +682,39 @@ fun CMCLauncherTheme(
         LocalBackgroundViewModel provides backgroundViewModel,
         LocalFestivals provides festivals
     ) {
-        MaterialExpressiveTheme(
-            colorScheme = currentDisplayScheme.cmcBrand(currentDarkTheme),
-            motionScheme = MotionScheme.expressive(),
-            shapes = CmcShapes,
-            typography = AppTypography,
-            content = content
-        )
+        val miuixColors = if (currentDarkTheme) miuixDarkColors() else miuixLightColors()
+        MiuixTheme(
+            colors = miuixColors
+        ) {
+            MaterialExpressiveTheme(
+                colorScheme = currentDisplayScheme.cmcBrand(currentDarkTheme),
+                motionScheme = MotionScheme.expressive(),
+                shapes = CmcShapes,
+                typography = AppTypography,
+                content = content
+            )
+        }
     }
 }
+
+private fun miuixDarkColors() = top.yukonga.miuix.kmp.theme.darkColorScheme(
+    primary = Cmc.Accent,
+    onPrimary = Cmc.Ink,
+    secondary = Cmc.Blue,
+    onSecondary = Color.White,
+    surface = Cmc.inkDark,
+    onSurface = Color(0xFFE6F1EA),
+    background = Cmc.inkDark,
+    onBackground = Color(0xFFE6F1EA)
+)
+
+private fun miuixLightColors() = top.yukonga.miuix.kmp.theme.lightColorScheme(
+    primary = Cmc.AccentDeep,
+    onPrimary = Color.White,
+    secondary = Color(0xFF2A5BD7),
+    onSecondary = Color.White,
+    surface = Cmc.inkLight,
+    onSurface = Color(0xFF101B15),
+    background = Cmc.inkLight,
+    onBackground = Color(0xFF101B15)
+)

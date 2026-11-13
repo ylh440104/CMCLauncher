@@ -20,6 +20,7 @@ gson = "2.15.0"
 jetbrainsAnnotations = "26.1.0"
 kotlin = "2.4.21"
 kspPlugin = "2.3.12"
+miuix = "0.9.4"
 coreKtx = "1.19.1"
 kotlinxCoroutinesAndroid = "1.11.0"
 ktor = "3.6.1"
@@ -91,6 +92,8 @@ androidx-ui-tooling = { group = "androidx.compose.ui", name = "ui-tooling" }
 androidx-ui-tooling-preview = { group = "androidx.compose.ui", name = "ui-tooling-preview" }
 androidx-ui-test-junit4 = { group = "androidx.compose.ui", name = "ui-test-junit4" }
 androidx-material3 = { group = "androidx.compose.material3", name = "material3", version.ref = "material3" }
+miuix-ui = { group = "top.yukonga.miuix.kmp", name = "miuix-ui", version.ref = "miuix" }
+miuix-preference = { group = "top.yukonga.miuix.kmp", name = "miuix-preference", version.ref = "miuix" }
 androidx-webkit = { group = "androidx.webkit", name = "webkit", version.ref = "webkit" }
 bytehook = { module = "com.bytedance:bytehook", version.ref = "bytehook" }
 coil-compose = { module = "io.coil-kt.coil3:coil-compose", version.ref = "coilCompose" }
