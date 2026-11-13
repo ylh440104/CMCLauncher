@@ -51,10 +51,10 @@ import androidx.appcompat.app.AlertDialog;
 
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
-import com.movtery.zalithlauncher.bridge.ZLNativeInvoker;
-import com.movtery.zalithlauncher.game.sdl.SdlBridge;
-import com.movtery.zalithlauncher.ui.theme.NativeThemeUtilsKt;
-import com.movtery.zalithlauncher.utils.logging.Logger;
+import com.cmc.launcher.bridge.ZLNativeInvoker;
+import com.cmc.launcher.game.sdl.SdlBridge;
+import com.cmc.launcher.ui.theme.NativeThemeUtilsKt;
+import com.cmc.launcher.utils.logging.Logger;
 
 import java.io.FileNotFoundException;
 import java.util.ArrayList;

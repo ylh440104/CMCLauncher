@@ -1,7 +1,7 @@
 package org.lwjgl.glfw;
 
-import static com.movtery.zalithlauncher.bridge.ZLBridgeStatesKt.CURSOR_DISABLED;
-import static com.movtery.zalithlauncher.bridge.ZLBridgeStatesKt.CURSOR_ENABLED;
+import static com.cmc.launcher.bridge.ZLBridgeStatesKt.CURSOR_DISABLED;
+import static com.cmc.launcher.bridge.ZLBridgeStatesKt.CURSOR_ENABLED;
 
 import android.content.ClipData;
 import android.content.ClipDescription;
@@ -17,16 +17,16 @@ import androidx.annotation.Keep;
 import androidx.annotation.Nullable;
 
 import com.movtery.inputmap.keycodes.LwjglGlfwKeycode;
-import com.movtery.zalithlauncher.BuildKeys;
-import com.movtery.zalithlauncher.bridge.CursorShape;
-import com.movtery.zalithlauncher.bridge.LoggerBridge;
-import com.movtery.zalithlauncher.bridge.NativeLibraryLoader;
-import com.movtery.zalithlauncher.bridge.ZLBridgeStates;
-import com.movtery.zalithlauncher.bridge.ZLNativeInvoker;
-import com.movtery.zalithlauncher.context.ContextsKt;
-import com.movtery.zalithlauncher.game.input.EfficientAndroidLWJGLKeycode;
-import com.movtery.zalithlauncher.game.sdl.DirectGamepadEnableHandler;
-import com.movtery.zalithlauncher.game.sdl.SdlBridge;
+import com.cmc.launcher.BuildKeys;
+import com.cmc.launcher.bridge.CursorShape;
+import com.cmc.launcher.bridge.LoggerBridge;
+import com.cmc.launcher.bridge.NativeLibraryLoader;
+import com.cmc.launcher.bridge.ZLBridgeStates;
+import com.cmc.launcher.bridge.ZLNativeInvoker;
+import com.cmc.launcher.context.ContextsKt;
+import com.cmc.launcher.game.input.EfficientAndroidLWJGLKeycode;
+import com.cmc.launcher.game.sdl.DirectGamepadEnableHandler;
+import com.cmc.launcher.game.sdl.SdlBridge;
 
 import org.libsdl.app.SDLActivity;
 import org.libsdl.app.SDLSurface;

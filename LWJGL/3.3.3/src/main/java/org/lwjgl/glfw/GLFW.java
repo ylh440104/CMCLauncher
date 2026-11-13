@@ -4,7 +4,7 @@
  */
 package org.lwjgl.glfw;
 
-import com.movtery.zalithlauncher.CursorRegistry;
+import com.cmc.launcher.CursorRegistry;
 
 import android.util.*;
 

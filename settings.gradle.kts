@@ -24,8 +24,9 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "ZalithLauncher"
-include(":ZalithLauncher")
+rootProject.name = "CMCLauncher"
+include(":CMCLauncher")
+project(":CMCLauncher").projectDir = file("ZalithLauncher")
 include(":LWJGL")
 include(":LWJGL:patches")
 project(":LWJGL:patches").projectDir = file("LWJGL/patches")

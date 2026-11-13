@@ -31,7 +31,7 @@
         android:icon="@mipmap/ic_launcher"
         android:label="${launcher_name}"
         android:roundIcon="@mipmap/ic_launcher_round"
-        android:theme="@style/AppTheme.ZalithLauncher"
+        android:theme="@style/AppTheme.CMCLauncher"
         android:appCategory="game"
         android:supportsRtl="true"
         android:isGame="true"
@@ -144,7 +144,7 @@
             android:process=":filemanager"
             android:exported="false">
             <intent-filter>
-                <action android:name="com.movtery.zalithlauncher.filemanager.EVENT_SERVICE" />
+                <action android:name="com.cmc.launcher.filemanager.EVENT_SERVICE" />
             </intent-filter>
         </service>
 
