@@ -23,10 +23,7 @@ import androidx.compose.material3.SwitchColors
 import top.yukonga.miuix.kmp.basic.Switch as MiuixSwitch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.Stable
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 
 @Composable
 fun DefaultSwitch(
@@ -44,4 +41,3 @@ fun DefaultSwitch(
         enabled = enabled
     )
 }
-    }

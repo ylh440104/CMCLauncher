@@ -43,7 +43,6 @@ import com.cmc.launcher.ui.theme.components.activeMaskView
 import com.cmc.launcher.ui.theme.cmc.Cmc
 import com.cmc.launcher.ui.theme.cmc.CmcShapes
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import androidx.compose.ui.graphics.Color
 import com.cmc.launcher.ui.theme.cmc.cmcBrand
 import com.cmc.launcher.utils.festival.Festival
 import com.cmc.launcher.utils.festival.LocalFestivals
