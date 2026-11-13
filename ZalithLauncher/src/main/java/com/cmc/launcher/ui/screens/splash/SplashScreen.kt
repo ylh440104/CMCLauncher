@@ -57,7 +57,6 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation3.runtime.entryProvider
 import com.cmc.launcher.R
 import com.cmc.launcher.components.InstallableItem
-import com.cmc.launcher.legal.AvailableAgreement
 import com.cmc.launcher.ui.base.BaseScreen
 import com.cmc.launcher.ui.components.AnimatedDirection
 import com.cmc.launcher.ui.components.animated
@@ -66,19 +65,14 @@ import com.cmc.launcher.ui.screens.NavStateHost
 import com.cmc.launcher.ui.screens.NestedNavDisplay
 import com.cmc.launcher.ui.screens.rememberTransitionSpec
 import com.cmc.launcher.viewmodel.SplashBackStackViewModel
-import kotlinx.coroutines.flow.StateFlow
 
 /**
  * @param startAllTask 开启全部的解压任务
- * @param onWelcomeFinished 完成欢迎页
- * @param availableAgreement 完整的可用协议数据
  * @param unpackItems 解压任务列表
  */
 @Composable
 fun SplashScreen(
     startAllTask: () -> Unit,
-    onWelcomeFinished: () -> Unit,
-    availableAgreement: StateFlow<AvailableAgreement?>,
     unpackItems: List<InstallableItem>,
     screenViewModel: SplashBackStackViewModel
 ) {
@@ -86,8 +80,6 @@ fun SplashScreen(
         NavigationUI(
             modifier = Modifier.fillMaxSize(),
             startAllTask = startAllTask,
-            onWelcomeFinished = onWelcomeFinished,
-            availableAgreement = availableAgreement,
             unpackItems = unpackItems,
             screenViewModel = screenViewModel
         )
@@ -98,8 +90,6 @@ fun SplashScreen(
 private fun NavigationUI(
     modifier: Modifier = Modifier,
     startAllTask: () -> Unit,
-    onWelcomeFinished: () -> Unit,
-    availableAgreement: StateFlow<AvailableAgreement?>,
     unpackItems: List<InstallableItem>,
     screenViewModel: SplashBackStackViewModel
 ) {
@@ -121,14 +111,6 @@ private fun NavigationUI(
             entryProvider = entryProvider {
                 entry<SplashOperation.Loading> {
                     LoadingScreen(screenViewModel = screenViewModel)
-                }
-                entry<SplashOperation.Welcome> {
-                    WelcomeScreen(
-                        modifier = Modifier.fillMaxSize(),
-                        onFinished = onWelcomeFinished,
-                        availableAgreement = availableAgreement,
-                        screenViewModel = screenViewModel
-                    )
                 }
                 entry<SplashOperation.Unpacking> {
                     UnpackScreen(
