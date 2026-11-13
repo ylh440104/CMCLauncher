@@ -19,6 +19,7 @@
 package com.cmc.launcher.ui.screens.content
 
 import androidx.compose.foundation.basicMarquee
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
@@ -32,6 +33,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationRailItem
@@ -136,21 +138,20 @@ fun DownloadScreen(
         currentKey = backScreenViewModel.mainScreen.currentKey,
         useClassEquality = true
     ) { isVisible: Boolean ->
-        Row(modifier = Modifier.fillMaxSize()) {
+                Column(modifier = Modifier.fillMaxSize()) {
             TabMenu(
-                modifier = Modifier.fillMaxHeight(),
+                modifier = Modifier.fillMaxWidth(),
                 isVisible = isVisible,
                 backStack = key.backStack,
                 backScreenViewModel = backScreenViewModel,
             )
-
             NavigationUI(
                 key = key,
                 backScreenViewModel = backScreenViewModel,
                 eventViewModel = eventViewModel,
                 modpackImportViewModel = modpackImportViewModel,
                 submitError = submitError,
-                modifier = Modifier.fillMaxHeight()
+                modifier = Modifier.fillMaxWidth().weight(1f)
             )
         }
     }
@@ -175,48 +176,34 @@ private fun TabMenu(
     )
 
     val ctx = rememberAnimatedContext(isVisible = isVisible)
-
     val scrollState = rememberScrollState()
-    Column(
+    Row(
         modifier = modifier
+            .fillMaxWidth()
             .fadeEdge(scrollState)
-            .width(IntrinsicSize.Min)
-            .padding(start = 8.dp)
-            .animated(ctx, from = AnimatedDirection.Left)
-            .verticalScroll(scrollState),
-        horizontalAlignment = Alignment.CenterHorizontally
+            .animated(ctx, from = AnimatedDirection.Top)
+            .horizontalScroll(scrollState)
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Spacer(modifier = Modifier.height(12.dp))
         downloadsList.forEach { item ->
-            if (item.division) {
-                HorizontalDivider(
-                    modifier = Modifier
-                        .padding(vertical = 12.dp)
-                        .fillMaxWidth(0.4f)
-                        .alpha(0.4f),
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-            }
-
-            NavigationRailItem(
+            FilterChip(
                 selected = backScreenViewModel.downloadScreen.currentKey == item.key,
                 onClick = {
                     backStack.navigateOnce(item.key)
                 },
-                icon = {
-                    item.icon()
-                },
                 label = {
                     Text(
-                        modifier = Modifier.basicMarquee(iterations = Int.MAX_VALUE),
                         text = stringResource(item.textRes),
                         maxLines = 1,
-                        style = MaterialTheme.typography.labelMedium
+                        style = MaterialTheme.typography.labelLarge
                     )
+                },
+                leadingIcon = {
+                    item.icon()
                 }
             )
-
-            Spacer(modifier = Modifier.height(8.dp))
         }
     }
 }

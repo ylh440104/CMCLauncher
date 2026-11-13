@@ -81,13 +81,13 @@
     <string name="generic_edit">Edit</string>
     <string name="generic_view">View</string>
     <!-- Title of the version list page -->
-    <string name="page_title_version_list">Version List</string>
+    <string name="page_title_version_list">版本列表</string>
     <!-- Title of the manage versions page -->
-    <string name="page_title_version_manage">Manage Versions</string>
+    <string name="page_title_version_manage">版本管理</string>
     <!-- Title of the account list page -->
-    <string name="page_title_account_list">Account List</string>
+    <string name="page_title_account_list">账号列表</string>
     <!-- Title of the file and folder picker screen -->
-    <string name="page_title_select_files">Select Path</string>
+    <string name="page_title_select_files">选择路径</string>
     <!-- Header of the in-app file browser shown when opening a game folder -->
     <string name="files_browse_folder">Browse Folder</string>
     <!-- Title of the progress dialog shown while files are being imported -->
@@ -297,21 +297,21 @@
     <!-- Title of the side panel listing running download and install tasks -->
     <string name="main_task_menu">Task Menu</string>
     <!-- Category on the download page that opens the game version downloads -->
-    <string name="download_category_game">Game</string>
+    <string name="download_category_game">下载游戏</string>
     <!-- Category on the download page for modpacks; also used as a filter label -->
-    <string name="download_category_modpack">Modpack</string>
+    <string name="download_category_modpack">整合包</string>
     <!-- Category on the download page for mods; also used as a filter label -->
-    <string name="download_category_mod">Mod</string>
+    <string name="download_category_mod">模组</string>
     <!-- Category on the download page for resource packs; also used as a filter label -->
-    <string name="download_category_resource_pack">Resource Pack</string>
+    <string name="download_category_resource_pack">资源包</string>
     <!-- Category on the download page for world saves; also used as a filter label -->
-    <string name="download_category_saves">Saves</string>
+    <string name="download_category_saves">存档</string>
     <!-- Category on the download page for shader packs; also used as a filter label -->
-    <string name="download_category_shaders">Shader Pack</string>
+    <string name="download_category_shaders">光影包</string>
     <!-- Category on the download page for searching content by project ID -->
-    <string name="download_category_by_id">Search by ID</string>
+    <string name="download_category_by_id">按 ID 搜索</string>
     <!-- Category on the download page that opens the favorites page -->
-    <string name="download_category_favorites">Favorites</string>
+    <string name="download_category_favorites">收藏</string>
     <!-- Error on the game version selection screen; %s is the error detail, tap to retry -->
     <string name="download_game_failed_to_get_versions">Failed to get version: %s. Tap to retry.</string>
     <!-- Toggleable filter chip on the game version selection screen for release versions -->
@@ -1710,9 +1710,9 @@
     <!-- Default label of optional text fields in settings; an empty value is simply ignored -->
     <string name="settings_label_ignore_if_blank">Leave blank to ignore</string>
     <!-- Name of the Renderer category on the settings screen and the title of its page -->
-    <string name="settings_tab_renderer">Renderer</string>
+    <string name="settings_tab_renderer">渲染</string>
     <!-- Name of the Game category on the settings screen and the title of its page -->
-    <string name="settings_tab_game">Game</string>
+    <string name="settings_tab_game">游戏</string>
     <!-- Name of the Controls category on the settings screen and the title of its page -->
     <string name="settings_tab_control">Controls</string>
     <!-- Name of the Gamepad category on the settings screen and the title of its page -->

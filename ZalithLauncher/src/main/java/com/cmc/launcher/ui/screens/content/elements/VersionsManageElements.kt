@@ -22,7 +22,16 @@ import androidx.annotation.DrawableRes
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.Animatable
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.shape.CircleShape
+import com.cmc.launcher.ui.components.CmcTag
+import com.cmc.launcher.ui.theme.cmc.Cmc
 import androidx.compose.foundation.basicMarquee
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
@@ -702,7 +711,7 @@ fun VersionItemLayout(
         modifier = modifier.graphicsLayer(scaleY = scale.value, scaleX = scale.value),
         color = color,
         contentColor = contentColor,
-        shape = MaterialTheme.shapes.large,
+        shape = RoundedCornerShape(20.dp),
         onClick = {
             if (selected) return@Surface
             onSelected()
@@ -711,18 +720,24 @@ fun VersionItemLayout(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(shape = MaterialTheme.shapes.large)
+                .height(IntrinsicSize.Min)
+                .clip(shape = RoundedCornerShape(20.dp))
                 .backgroundGlass(blur, color, influencedByBackground)
-                .padding(all = 4.dp),
+                .padding(all = 6.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            RadioButton(
-                selected = selected,
-                onClick = {
-                    if (selected) return@RadioButton
-                    onSelected()
-                }
+            Box(
+                modifier = Modifier
+                    .width(4.dp)
+                    .fillMaxHeight()
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(
+                        if (selected) Brush.verticalGradient(
+                            listOf(Cmc.Accent, Cmc.Blue)
+                        ) else Color.Transparent
+                    )
             )
+            Spacer(Modifier.width(10.dp))
             CommonVersionInfoLayout(
                 modifier = Modifier.weight(1f),
                 version = version
@@ -883,7 +898,7 @@ fun VersionItemLayout(
 fun CommonVersionInfoLayout(
     version: Version,
     modifier: Modifier = Modifier,
-    iconSize: Dp = 34.dp,
+    iconSize: Dp = 38.dp,
 ) {
     val isValid = remember(version) { version.isValid() }
     val versionName = remember(version) { version.getVersionName() }
@@ -893,23 +908,36 @@ fun CommonVersionInfoLayout(
     Row(
         modifier = modifier,
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(16.dp)
+        horizontalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        VersionIconImage(
-            modifier = Modifier.size(iconSize),
-            version = version
-        )
+        Box {
+            VersionIconImage(
+                modifier = Modifier.size(iconSize),
+                version = version
+            )
+            if (version.pinnedState) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .size(9.dp)
+                        .clip(CircleShape)
+                        .background(Cmc.Accent)
+                        .border(1.5.dp, Cmc.Ink, CircleShape)
+                )
+            }
+        }
+
         Column(
-            modifier = Modifier.weight(1f)
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(3.dp)
         ) {
-            //版本名称
             Text(
                 modifier = Modifier.basicMarquee(iterations = Int.MAX_VALUE),
                 maxLines = 1,
                 text = versionName,
-                style = MaterialTheme.typography.labelLarge
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold
             )
-            //版本描述
             if (isValid && isSummaryValid) {
                 val versionSummary = remember(version) {
                     version.getVersionSummary()
@@ -919,35 +947,32 @@ fun CommonVersionInfoLayout(
                     modifier = Modifier.basicMarquee(iterations = Int.MAX_VALUE),
                     maxLines = 1,
                     text = versionSummary,
-                    style = MaterialTheme.typography.labelMedium
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-            //版本详细信息
+
             FlowRow(
-                modifier = Modifier.alpha(0.7f),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 if (!isValid) {
-                    LittleTextLabel(
+                    CmcTag(
                         text = stringResource(R.string.versions_manage_invalid),
-                        color = MaterialTheme.colorScheme.errorContainer,
-                        contentColor = MaterialTheme.colorScheme.onErrorContainer,
-                        textStyle = MaterialTheme.typography.labelSmall
+                        container = MaterialTheme.colorScheme.errorContainer,
+                        content = MaterialTheme.colorScheme.onErrorContainer
                     )
                 } else {
                     versionInfo?.let { versionInfo ->
-                        Text(
+                        CmcTag(
                             text = versionInfo.minecraftVersion,
-                            style = MaterialTheme.typography.labelSmall,
+                            container = Cmc.Accent.copy(alpha = 0.14f),
+                            content = Cmc.Accent
                         )
                         versionInfo.loaderInfos.forEach { loaderInfo ->
-                            Text(
-                                text = loaderInfo.loader.displayName,
-                                style = MaterialTheme.typography.labelSmall
-                            )
-                            Text(
-                                text = loaderInfo.version,
-                                style = MaterialTheme.typography.labelSmall
+                            CmcTag(
+                                text = loaderInfo.loader.displayName + " " + loaderInfo.version,
+                                container = Cmc.Blue.copy(alpha = 0.14f),
+                                content = Cmc.Blue
                             )
                         }
                     }
