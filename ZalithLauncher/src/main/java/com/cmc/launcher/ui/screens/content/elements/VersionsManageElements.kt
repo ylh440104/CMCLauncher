@@ -28,6 +28,7 @@ import androidx.compose.foundation.shape.CircleShape
 import com.cmc.launcher.ui.components.CmcTag
 import com.cmc.launcher.ui.theme.cmc.Cmc
 import androidx.compose.foundation.basicMarquee
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.shape.RoundedCornerShape
