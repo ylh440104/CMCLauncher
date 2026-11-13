@@ -403,7 +403,7 @@ private fun <E: TitledNavKey> TopBar(
                             modifier = Modifier.size(22.dp),
                             painter = painterResource(R.drawable.ic_assignment_filled),
                             contentDescription = stringResource(R.string.main_task_menu),
-                            tint = MiuixTheme.colorScheme.onSurfaceVariant
+                            tint = MiuixTheme.colorScheme.onSurfaceVariantSummary
                         )
                     }
                 }
@@ -475,14 +475,14 @@ private fun TopBarIconItem(
                 painter = painter,
                 contentDescription = text,
                 tint = if (selected) MiuixTheme.colorScheme.primary
-                else MiuixTheme.colorScheme.onSurfaceVariant
+                else MiuixTheme.colorScheme.onSurfaceVariantSummary
             )
             if (text != null) {
                 Text(
                     text = text,
                     style = MaterialTheme.typography.labelMedium,
                     color = if (selected) MiuixTheme.colorScheme.primary
-                    else MiuixTheme.colorScheme.onSurfaceVariant
+                    else MiuixTheme.colorScheme.onSurfaceVariantSummary
                 )
             }
         }
