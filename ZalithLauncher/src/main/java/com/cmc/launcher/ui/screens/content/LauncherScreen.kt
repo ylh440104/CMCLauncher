@@ -77,6 +77,7 @@ import com.movtery.guide.GuideSide
 import com.movtery.guide.guideNode
 import com.movtery.petlib.PetAnimation
 import com.movtery.petlib.PetTapReaction
+import com.cmc.launcher.BuildKeys
 import com.cmc.launcher.R
 import com.cmc.launcher.game.account.Account
 import com.cmc.launcher.game.account.AccountsManager
@@ -97,6 +98,10 @@ import com.cmc.launcher.ui.components.ScreenTypeLayout
 import com.cmc.launcher.ui.components.animated
 import com.cmc.launcher.ui.components.rememberAnimatedContext
 import com.cmc.launcher.ui.guide.GuideKeys
+import com.cmc.launcher.ui.theme.cmc.Cmc
+import com.cmc.launcher.ui.theme.cmc.CmcAction
+import com.cmc.launcher.ui.theme.cmc.CmcHeroBanner
+import com.cmc.launcher.ui.theme.cmc.CmcQuickActionRow
 import com.cmc.launcher.ui.screens.NestedNavKey
 import com.cmc.launcher.ui.screens.NormalNavKey
 import com.cmc.launcher.ui.screens.content.elements.CommonVersionInfoLayout
@@ -198,21 +203,56 @@ fun LauncherScreen(
                         }
                     }
                 ) {
-                ContentMenu(
+                Column(
                     modifier = Modifier
                         .guideNode(
                             key = GuideKeys.Main.Step.CardTip,
                             holeRadius = 0.dp
                         )
                         .weight(ContentWeight)
-                        .offset { IntOffset(x = dragState.previewShift.value.roundToInt(), y = 0) },
-                    isVisible = isVisible,
-                    onLaunchGame = { version ->
-                        onLaunchGame(version)
-                    },
-                    onQuickPlayServer = onQuickPlayServer,
-                    onOpenVersionSettings = navigateToVersions
-                )
+                        .offset { IntOffset(x = dragState.previewShift.value.roundToInt(), y = 0) }
+                ) {
+                    CmcHeroBanner(
+                        modifier = Modifier.padding(start = 12.dp, end = 6.dp, top = 8.dp, bottom = 2.dp),
+                        title = BuildKeys.LAUNCHER_NAME,
+                        subtitle = Cmc.TAGLINE,
+                        accent = MaterialTheme.colorScheme.primary
+                    )
+                    CmcQuickActionRow(
+                        modifier = Modifier.padding(start = 12.dp, end = 6.dp, top = 6.dp),
+                        actions = listOf(
+                            CmcAction(
+                                label = stringResource(R.string.generic_download),
+                                caption = "版本 / 整合包",
+                                accent = Cmc.Accent,
+                                onClick = {
+                                    backStackViewModel.navigateToDownload()
+                                }
+                            ),
+                            CmcAction(
+                                label = stringResource(R.string.versions_manage),
+                                caption = "已安装",
+                                accent = Cmc.Blue,
+                                onClick = toVersionManageScreen
+                            ),
+                            CmcAction(
+                                label = "账号",
+                                caption = stringResource(R.string.settings_tab_launcher),
+                                accent = MaterialTheme.colorScheme.tertiary,
+                                onClick = toAccountManageScreen
+                            )
+                        )
+                    )
+                    ContentMenu(
+                        modifier = Modifier.fillMaxSize(),
+                        isVisible = isVisible,
+                        onLaunchGame = { version ->
+                            onLaunchGame(version)
+                        },
+                        onQuickPlayServer = onQuickPlayServer,
+                        onOpenVersionSettings = navigateToVersions
+                    )
+                }
                 }
 
                 // ActionMenu 对接到了 End，留出空位
@@ -314,7 +354,7 @@ private fun AccountAvatarCenter(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
-                    text = account?.username ?: stringResource(R.string.account_add_new_account),
+                    text = account?.username ?: "账号",
                     maxLines = 1,
                     style = MaterialTheme.typography.titleSmall
                 )
@@ -360,7 +400,7 @@ private fun AccountAvatarRow(
             verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             Text(
-                text = account?.username ?: stringResource(R.string.account_add_new_account),
+                text = account?.username ?: "账号",
                 maxLines = 1,
                 style = MaterialTheme.typography.titleSmall
             )
