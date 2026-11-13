@@ -133,7 +133,7 @@ private fun TabMenu(
         modifier = modifier
             .fillMaxWidth()
             .fadeEdge(scrollState)
-            .animated(ctx, from = AnimatedDirection.Up)
+            .animated(ctx, from = AnimatedDirection.Top)
             .horizontalScroll(scrollState)
             .padding(horizontal = 12.dp, vertical = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
