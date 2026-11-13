@@ -230,7 +230,7 @@ fun LauncherScreen(
                                 }
                             ),
                             CmcAction(
-                                label = stringResource(R.string.versions_manage),
+                                label = stringResource(R.string.page_title_version_manage),
                                 caption = "已安装",
                                 accent = Cmc.Blue,
                                 onClick = toVersionManageScreen

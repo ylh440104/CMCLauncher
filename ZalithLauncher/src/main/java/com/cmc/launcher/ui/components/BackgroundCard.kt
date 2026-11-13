@@ -31,11 +31,13 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.UiComposable
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.unit.dp
 import com.cmc.launcher.setting.AllSettings
 import com.cmc.launcher.ui.screens.content.elements.backgroundGlass
+import com.cmc.launcher.ui.theme.cmc.Cmc
 import com.cmc.launcher.ui.theme.cardColor
 import com.cmc.launcher.ui.theme.cardTitleColor
 import com.cmc.launcher.ui.theme.onCardColor
@@ -73,7 +75,7 @@ fun BackgroundCard(
         shape = shape,
         colors = colors,
         elevation = elevation,
-        border = border,
+        border = border ?: cmcCardBorder(),
     ) {
         Column(
             modifier = Modifier.backgroundGlass(blur, colors.containerColor, influencedByBackground),
@@ -81,6 +83,17 @@ fun BackgroundCard(
         )
     }
 }
+
+private fun cmcCardBorder(): BorderStroke = BorderStroke(
+    width = 1.dp,
+    brush = Brush.linearGradient(
+        listOf(
+            Cmc.Accent.copy(alpha = 0.30f),
+            Cmc.Blue.copy(alpha = 0.12f),
+            Color.Transparent
+        )
+    )
+)
 
 /**
  * 背景卡片组件，
@@ -108,7 +121,7 @@ fun BackgroundCard(
         shape = shape,
         colors = colors,
         elevation = elevation,
-        border = border,
+        border = border ?: cmcCardBorder(),
         onClick = onClick,
         enabled = enabled,
     ) {
