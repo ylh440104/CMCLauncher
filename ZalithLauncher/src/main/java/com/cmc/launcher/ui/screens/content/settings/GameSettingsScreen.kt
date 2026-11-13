@@ -94,24 +94,24 @@ fun GameSettingsScreen(
                         modifier = Modifier.fillMaxWidth(),
                         position = CardPosition.Top,
                         unit = AllSettings.versionIsolation,
-                        title = stringResource(R.string.settings_game_version_isolation_title),
-                        summary = stringResource(R.string.settings_game_version_isolation_summary)
+                        title = "版本隔离",
+                        summary = "每个版本使用独立的游戏目录，存档和模组互不干扰"
                     )
 
                     SwitchSettingsCard(
                         modifier = Modifier.fillMaxWidth(),
                         position = CardPosition.Middle,
                         unit = AllSettings.skipGameIntegrityCheck,
-                        title = stringResource(R.string.settings_game_skip_game_integrity_check_title),
-                        summary = stringResource(R.string.settings_game_skip_game_integrity_check_summary)
+                        title = "跳过完整性校验",
+                        summary = "启动时不校验游戏文件哈希，加快启动速度"
                     )
 
                     TextInputSettingsCard(
                         modifier = Modifier.fillMaxWidth(),
                         position = CardPosition.Bottom,
                         unit = AllSettings.versionCustomInfo,
-                        title = stringResource(R.string.settings_game_version_custom_info_title),
-                        summary = stringResource(R.string.settings_game_version_custom_info_summary)
+                        title = "自定义版本信息",
+                        summary = "替换主菜单右下角显示的版本号文字"
                     )
                 }
             }
@@ -130,8 +130,8 @@ fun GameSettingsScreen(
                             position = CardPosition.Top,
                             unit = AllSettings.javaRuntime,
                             items = RuntimesManager.getRuntimes().filter { it.isCompatible() },
-                            title = stringResource(R.string.settings_game_java_runtime_title),
-                            summary = stringResource(R.string.settings_game_java_runtime_summary),
+                            title = "Java 运行时",
+                            summary = "选择游戏使用的 Java 版本",
                             getItemText = { it.name },
                             getItemId = { it.name }
                         )
@@ -141,8 +141,8 @@ fun GameSettingsScreen(
                         modifier = Modifier.fillMaxWidth(),
                         position = if (runtimes.isNotEmpty()) CardPosition.Middle else CardPosition.Top,
                         unit = AllSettings.autoPickJavaRuntime,
-                        title = stringResource(R.string.settings_game_auto_pick_java_runtime_title),
-                        summary = stringResource(R.string.settings_game_auto_pick_java_runtime_summary)
+                        title = "自动选择 Java",
+                        summary = "根据版本要求自动匹配合适的 Java 运行时"
                     )
 
                     val nativePlugins = remember {
@@ -183,8 +183,8 @@ fun GameSettingsScreen(
                                     this + item.packageName
                                 }
                             },
-                            title = stringResource(R.string.settings_game_native_lib_plugin_title),
-                            summary = stringResource(R.string.settings_game_native_lib_plugin_summary),
+                            title = "原生库插件",
+                            summary = "管理已安装的原生库插件，影响模组兼容性",
                             getItemID = { it.packageName },
                             getItemText = { it.displayName },
                             getItemSummary = { plugin ->
@@ -199,8 +199,8 @@ fun GameSettingsScreen(
                         SettingsCard(
                             modifier = Modifier.fillMaxWidth(),
                             position = CardPosition.Middle,
-                            title = stringResource(R.string.settings_game_native_lib_plugin_title),
-                            summary = stringResource(R.string.settings_game_native_lib_plugin_summary),
+                            title = "原生库插件",
+                            summary = "管理已安装的原生库插件，影响模组兼容性",
                             onClick = {},
                             trailingIcon = {
                                 DLNativeLibsButton()
@@ -212,8 +212,8 @@ fun GameSettingsScreen(
                         modifier = Modifier.fillMaxWidth(),
                         position = CardPosition.Middle,
                         unit = AllSettings.ramAllocation,
-                        title = stringResource(R.string.settings_game_java_memory_title),
-                        summary = stringResource(R.string.settings_game_java_memory_summary),
+                        title = "内存分配",
+                        summary = "为游戏分配的内存大小，过大可能导致系统卡顿",
                         valueRange = AllSettings.ramAllocation.floatRange.start..getMaxMemoryForSettings(LocalContext.current).toFloat(),
                         suffix = "MB",
                         fineTuningControl = true,
@@ -224,10 +224,10 @@ fun GameSettingsScreen(
                                     .padding(start = 2.dp),
                                 preview = (AllSettings.ramAllocation.state ?: AllSettings.ramAllocation.min).toDouble(),
                                 usedText = { usedMemory, totalMemory ->
-                                    stringResource(R.string.settings_game_java_memory_used_text, usedMemory.toInt(), totalMemory.toInt())
+                                    "已用 " + usedMemory.toInt() + " / " + totalMemory.toInt() + " MB"
                                 },
                                 previewText = { preview ->
-                                    stringResource(R.string.settings_game_java_memory_allocation_text, preview.toInt())
+                                    "分配 " + preview.toInt() + " MB"
                                 }
                             )
                         }
@@ -237,8 +237,8 @@ fun GameSettingsScreen(
                         modifier = Modifier.fillMaxWidth(),
                         position = CardPosition.Bottom,
                         unit = AllSettings.jvmArgs,
-                        title = stringResource(R.string.settings_game_jvm_args_title),
-                        summary = stringResource(R.string.settings_game_jvm_args_summary)
+                        title = "JVM 参数",
+                        summary = "额外的 Java 虚拟机启动参数，留空使用默认值"
                     )
                 }
             }
@@ -253,16 +253,16 @@ fun GameSettingsScreen(
                         modifier = Modifier.fillMaxWidth(),
                         position = CardPosition.Top,
                         unit = AllSettings.showLogAutomatic,
-                        title = stringResource(R.string.settings_game_show_log_automatic_title),
-                        summary = stringResource(R.string.settings_game_show_log_automatic_summary)
+                        title = "自动显示日志",
+                        summary = "游戏启动后自动打开日志窗口"
                     )
 
                     IntSliderSettingsCard(
                         modifier = Modifier.fillMaxWidth(),
                         position = CardPosition.Middle,
                         unit = AllSettings.logTextSize,
-                        title = stringResource(R.string.settings_game_log_text_size_title),
-                        summary = stringResource(R.string.settings_game_log_text_size_summary),
+                        title = "日志字号",
+                        summary = "调整游戏日志的文字大小",
                         valueRange = AllSettings.logTextSize.floatRange,
                         suffix = "Sp",
                         fineTuningControl = true
@@ -272,8 +272,8 @@ fun GameSettingsScreen(
                         modifier = Modifier.fillMaxWidth(),
                         position = CardPosition.Bottom,
                         unit = AllSettings.logBufferFlushInterval,
-                        title = stringResource(R.string.settings_game_log_buffer_flush_interval_title),
-                        summary = stringResource(R.string.settings_game_log_buffer_flush_interval_summary),
+                        title = "日志刷新间隔",
+                        summary = "日志缓冲区的写入间隔，越小越实时但越耗电",
                         valueRange = AllSettings.logBufferFlushInterval.floatRange,
                         suffix = "ms",
                         fineTuningControl = true

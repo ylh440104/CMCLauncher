@@ -126,8 +126,8 @@ fun RendererSettingsScreen(
                         position = CardPosition.Top,
                         unit = AllSettings.renderer,
                         items = Renderers.getRenderers(),
-                        title = stringResource(R.string.settings_renderer_global_renderer_title),
-                        summary = stringResource(R.string.settings_renderer_global_renderer_summary),
+                        title = "渲染后端",
+                        summary = "选择图形渲染方案，影响游戏画面质量和性能",
                         getItemText = { it.getRendererName() },
                         getItemId = { it.getUniqueIdentifier() },
                         getItemSummary = {
@@ -140,7 +140,7 @@ fun RendererSettingsScreen(
                                 ) {
                                     Icon(
                                         painter = painterResource(R.drawable.ic_settings_filled),
-                                        contentDescription = stringResource(R.string.settings_renderer_config_title)
+                                        contentDescription = "配置"
                                     )
                                 }
                             }
@@ -177,8 +177,8 @@ fun RendererSettingsScreen(
                         position = CardPosition.Middle,
                         unit = AllSettings.sfpewPluginLayer,
                         enabled = currentRenderer is Plugin,
-                        title = stringResource(R.string.settings_renderer_sfpew_plugin_layer_title),
-                        summary = stringResource(R.string.settings_renderer_sfpew_plugin_layer_summary)
+                        title = "插件渲染层",
+                        summary = "为渲染器插件启用额外的处理层"
                     )
 
                     SwitchSettingsCard(
@@ -199,7 +199,7 @@ fun RendererSettingsScreen(
                         position = CardPosition.Middle,
                         unit = AllSettings.vulkanDriver,
                         items = DriverPluginManager.getDriverList(),
-                        title = stringResource(R.string.settings_renderer_global_vulkan_driver_title),
+                        title = "Vulkan 驱动",
                         getItemText = { it.name },
                         getItemId = { it.id },
                         getItemSummary = {
@@ -232,12 +232,12 @@ fun RendererSettingsScreen(
                         position = CardPosition.Bottom,
                         unit = AllSettings.graphicsApi,
                         items = GraphicsApi.entries,
-                        title = stringResource(R.string.settings_game_graphics_api_title),
-                        summary = stringResource(R.string.settings_game_graphics_api_summary),
+                        title = "图形 API",
+                        summary = "指定游戏使用的图形接口，默认自动选择",
                         getItemText = {
                             when (it) {
-                                GraphicsApi.DEFAULT -> stringResource(R.string.settings_game_graphics_api_default)
-                                GraphicsApi.DEFAULT_OPENGL -> stringResource(R.string.settings_game_graphics_api_default_opengl)
+                                GraphicsApi.DEFAULT -> "自动"
+                                GraphicsApi.DEFAULT_OPENGL -> "OpenGL"
                                 else -> it.displayName
                             }
                         }
@@ -263,8 +263,8 @@ fun RendererSettingsScreen(
                             position = CardPosition.Top,
                             unit = AllSettings.resolutionRule,
                             items = ResolutionRule.entries,
-                            title = stringResource(R.string.settings_renderer_resolution_rule_title),
-                            summary = stringResource(R.string.settings_renderer_resolution_rule_summary),
+                            title = "分辨率模式",
+                            summary = "游戏画面的分辨率规则",
                             getItemText = { stringResource(it.nameRes) },
                             onValueChange = { rule ->
                                 // 自定义分辨率尚未初始化时，以屏幕真实宽高填充
@@ -288,8 +288,8 @@ fun RendererSettingsScreen(
                                     .padding(top = 2.dp),
                                 position = CardPosition.Middle,
                                 unit = AllSettings.resolutionRatio,
-                                title = stringResource(R.string.settings_renderer_resolution_scale_title),
-                                summary = stringResource(R.string.settings_renderer_resolution_scale_summary),
+                                title = "分辨率缩放",
+                                summary = "按屏幕百分比缩放游戏分辨率",
                                 valueRange = AllSettings.resolutionRatio.floatRange,
                                 suffix = "%",
                                 fineTuningControl = true
@@ -317,8 +317,8 @@ fun RendererSettingsScreen(
                         modifier = Modifier.fillMaxWidth(),
                         position = CardPosition.Bottom,
                         unit = AllSettings.gameFullScreen,
-                        title = stringResource(R.string.settings_renderer_full_screen_title),
-                        summary = stringResource(R.string.settings_renderer_full_screen_summary)
+                        title = "全屏模式",
+                        summary = "以全屏方式运行游戏"
                     )
                 }
             }
@@ -333,16 +333,16 @@ fun RendererSettingsScreen(
                         modifier = Modifier.fillMaxWidth(),
                         position = CardPosition.Top,
                         unit = AllSettings.sustainedPerformance,
-                        title = stringResource(R.string.settings_renderer_sustained_performance_title),
-                        summary = stringResource(R.string.settings_renderer_sustained_performance_summary)
+                        title = "持续性能模式",
+                        summary = "限制峰值性能以维持长时间稳定帧率"
                     )
 
                     SwitchSettingsCard(
                         modifier = Modifier.fillMaxWidth(),
                         position = CardPosition.Middle,
                         unit = AllSettings.requestMaxRefreshRate,
-                        title = stringResource(R.string.settings_renderer_max_refresh_rate_title),
-                        summary = stringResource(R.string.settings_renderer_max_refresh_rate_summary)
+                        title = "最高刷新率",
+                        summary = "请求屏幕以最高刷新率运行"
                     )
 
                     if (checkVulkanSupport(LocalContext.current.packageManager)) {
@@ -352,8 +352,8 @@ fun RendererSettingsScreen(
                             modifier = Modifier.fillMaxWidth(),
                             position = CardPosition.Middle,
                             unit = AllSettings.zinkPreferSystemDriver,
-                            title = stringResource(R.string.settings_renderer_vulkan_driver_system_title),
-                            summary = stringResource(R.string.settings_renderer_vulkan_driver_system_summary),
+                            title = "优先系统 Vulkan 驱动",
+                            summary = "使用系统自带的 Vulkan 驱动而非 Turnip",
                             onCheckedChange = { checked ->
                                 if (checked && isAdrenoGPU()) adrenoGPUAlert = true
                             }
@@ -362,7 +362,7 @@ fun RendererSettingsScreen(
                         if (adrenoGPUAlert) {
                             SimpleAlertDialog(
                                 title = stringResource(R.string.generic_warning),
-                                text = stringResource(R.string.settings_renderer_zink_driver_adreno),
+                                text = "Adreno GPU 使用系统 Vulkan 驱动可能出现花屏，确认要开启吗？",
                                 onConfirm = {
                                     AllSettings.zinkPreferSystemDriver.save(true)
                                     adrenoGPUAlert = false
@@ -379,16 +379,16 @@ fun RendererSettingsScreen(
                         modifier = Modifier.fillMaxWidth(),
                         position = CardPosition.Middle,
                         unit = AllSettings.vsyncInZink,
-                        title = stringResource(R.string.settings_renderer_vsync_in_zink_title),
-                        summary = stringResource(R.string.settings_renderer_vsync_in_zink_summary)
+                        title = "垂直同步",
+                        summary = "开启 VSync 可减少画面撕裂但可能限制帧率"
                     )
 
                     SwitchSettingsCard(
                         modifier = Modifier.fillMaxWidth(),
                         position = CardPosition.Bottom,
                         unit = AllSettings.dumpShaders,
-                        title = stringResource(R.string.settings_renderer_shader_dump_title),
-                        summary = stringResource(R.string.settings_renderer_shader_dump_summary)
+                        title = "着色器转储",
+                        summary = "导出编译后的着色器，用于问题排查"
                     )
                 }
             }
@@ -461,8 +461,8 @@ private fun CustomResolutionSettingsCard(
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             TitleAndSummary(
-                title = stringResource(R.string.settings_renderer_resolution_scale_title),
-                summary = stringResource(R.string.settings_renderer_resolution_custom_summary)
+                title = "分辨率缩放",
+                summary = "手动指定游戏的渲染分辨率"
             )
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -472,14 +472,14 @@ private fun CustomResolutionSettingsCard(
                     modifier = Modifier.weight(1f),
                     value = AllSettings.customResolutionWidth.state,
                     permitted = customResolutionRange(screenSize.width),
-                    label = stringResource(R.string.settings_renderer_resolution_custom_width),
+                    label = "宽度",
                     onValueChange = { AllSettings.customResolutionWidth.save(it) }
                 )
                 IntInputField(
                     modifier = Modifier.weight(1f),
                     value = AllSettings.customResolutionHeight.state,
                     permitted = customResolutionRange(screenSize.height),
-                    label = stringResource(R.string.settings_renderer_resolution_custom_height),
+                    label = "高度",
                     onValueChange = { AllSettings.customResolutionHeight.save(it) }
                 )
             }
