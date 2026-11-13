@@ -19,6 +19,27 @@
 package com.cmc.launcher.ui.screens.splash
 
 import androidx.compose.foundation.Image
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
+import com.cmc.launcher.setting.enums.isLauncherInDarkTheme
+import com.cmc.launcher.ui.theme.cmc.Cmc
+import com.cmc.launcher.ui.theme.cmc.cmcBackgroundBrush
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -132,25 +153,84 @@ private fun LoadingScreen(
         currentKey = screenViewModel.splashScreen.currentKey
     ) { isVisible ->
         val ctx = rememberAnimatedContext(isVisible = isVisible)
+        val infinite = rememberInfiniteTransition(label = "cmc_splash")
+        val pulse by infinite.animateFloat(
+            initialValue = 0.92f,
+            targetValue = 1.06f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(durationMillis = 1600, easing = FastOutSlowInEasing),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "pulse"
+        )
+        val glowAlpha by infinite.animateFloat(
+            initialValue = 0.25f,
+            targetValue = 0.55f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(durationMillis = 1600, easing = FastOutSlowInEasing),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "glow"
+        )
 
         Box(
             modifier = Modifier
                 .fillMaxSize()
+                .background(cmcBackgroundBrush(isLauncherInDarkTheme()))
                 .animated(ctx, from = AnimatedDirection.Bottom),
             contentAlignment = Alignment.Center
         ) {
             Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Image(
-                    modifier = Modifier.size(58.dp),
-                    painter = painterResource(R.drawable.img_launcher),
-                    contentDescription = stringResource(R.string.generic_loading)
+                Box(contentAlignment = Alignment.Center) {
+                    Box(
+                        modifier = Modifier
+                            .size(148.dp)
+                            .background(
+                                brush = Brush.radialGradient(
+                                    listOf(
+                                        Cmc.Accent.copy(alpha = glowAlpha),
+                                        Color.Transparent
+                                    )
+                                ),
+                                shape = CircleShape
+                            )
+                    )
+                    Image(
+                        modifier = Modifier
+                            .size(76.dp)
+                            .graphicsLayer {
+                                scaleX = pulse
+                                scaleY = pulse
+                            },
+                        painter = painterResource(R.drawable.ic_cmc_logo),
+                        contentDescription = stringResource(R.string.generic_loading)
+                    )
+                }
+
+                Spacer(Modifier.height(20.dp))
+
+                Text(
+                    text = Cmc.SHORT,
+                    color = MaterialTheme.colorScheme.onBackground,
+                    fontSize = 26.sp,
+                    fontWeight = FontWeight.Black,
+                    letterSpacing = 4.sp
                 )
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    text = Cmc.TAGLINE,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 11.sp,
+                    letterSpacing = 1.6.sp
+                )
+
+                Spacer(Modifier.height(40.dp))
+
                 LinearWavyProgressIndicator(
-                    modifier = Modifier.width(128.dp),
-                    wavelength = 32.dp
+                    modifier = Modifier.width(140.dp),
+                    wavelength = 28.dp
                 )
             }
         }

@@ -112,6 +112,7 @@ import com.cmc.launcher.ui.screens.rememberTransitionSpec
 import com.cmc.launcher.ui.theme.backgroundColor
 import com.cmc.launcher.ui.theme.cardColor
 import com.cmc.launcher.ui.theme.cmc.CmcBrandChip
+import com.cmc.launcher.ui.theme.cmc.CmcHeroBanner
 import com.cmc.launcher.ui.theme.cmc.cmcBackgroundBrush
 import com.cmc.launcher.setting.enums.isLauncherInDarkTheme
 import com.cmc.launcher.ui.theme.festivals.FestivalTitleText
@@ -221,6 +222,15 @@ fun MainScreen(
                     changeTasksExpandedState()
                 },
             )
+
+            if (inLauncherScreen) {
+                CmcHeroBanner(
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 4.dp),
+                    title = BuildKeys.LAUNCHER_NAME,
+                    subtitle = stringResource(R.string.main_launch_game) + " · Minecraft Java",
+                    accent = MaterialTheme.colorScheme.primary
+                )
+            }
 
             Box(
                 modifier = Modifier
