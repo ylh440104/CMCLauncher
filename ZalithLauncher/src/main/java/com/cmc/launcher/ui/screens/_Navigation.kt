@@ -30,7 +30,6 @@ import androidx.compose.runtime.remember
 import androidx.navigation3.runtime.NavBackStack
 import androidx.navigation3.scene.Scene
 import com.cmc.launcher.setting.AllSettings
-import com.cmc.launcher.utils.animation.SwapClock
 import com.cmc.launcher.utils.animation.SwapTimeline
 import kotlin.reflect.KClass
 
@@ -122,13 +121,11 @@ fun rememberSwapTween(): FiniteAnimationSpec<Float> {
  */
 @Composable
 fun <T : Any> rememberTransitionSpec(): AnimatedContentTransitionScope<Scene<T>>.() -> ContentTransform {
-    val level = AllSettings.launcherAnimateSpeedLevel.state
-    return remember(level) {
+    return remember {
         val transform: AnimatedContentTransitionScope<Scene<T>>.() -> ContentTransform = {
-            val window = SwapClock.record(initialState, targetState)
             ContentTransform(
-                fadeIn(animationSpec = snap(delayMillis = window.enterDelayMillis)),
-                fadeOut(animationSpec = snap(delayMillis = window.exitDelayMillis)),
+                fadeIn(animationSpec = snap(delayMillis = 0)),
+                fadeOut(animationSpec = snap(delayMillis = 0)),
             )
         }
         transform

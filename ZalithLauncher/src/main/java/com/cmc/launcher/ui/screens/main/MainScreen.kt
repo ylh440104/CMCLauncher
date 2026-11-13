@@ -97,7 +97,6 @@ import com.cmc.launcher.ui.screens.content.AccountManageScreen
 import com.cmc.launcher.ui.screens.content.DownloadScreen
 import com.cmc.launcher.ui.screens.content.FileSelectorScreen
 import com.cmc.launcher.ui.screens.content.LauncherScreen
-import com.cmc.launcher.ui.screens.content.LicenseScreen
 import com.cmc.launcher.ui.screens.content.LogViewScreen
 import com.cmc.launcher.ui.screens.content.MultiplayerScreen
 import com.cmc.launcher.ui.screens.content.SettingsScreen
@@ -554,26 +553,14 @@ private fun NavigationUI(
                         onOpenLink = {
                             eventViewModel.sendEvent(EventViewModel.Event.OpenLink(it))
                         },
-                        startGuideOnce = { keys ->
-                            eventViewModel.sendStartGuideOnce(keys)
-                        }
                     )
                 }
                 entry<NestedNavKey.Settings> { key ->
                     SettingsScreen(
                         key = key,
                         backStackViewModel = screenBackStackModel,
-                        openLicenseScreen = { raw ->
-                            backStack.navigateTo(NormalNavKey.License(raw))
-                        },
                         eventViewModel = eventViewModel,
                         submitError = submitError
-                    )
-                }
-                entry<NormalNavKey.License> { key ->
-                    LicenseScreen(
-                        key = key,
-                        backStackViewModel = screenBackStackModel
                     )
                 }
                 entry<NormalNavKey.AccountManager> { key ->

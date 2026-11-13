@@ -100,10 +100,6 @@ sealed interface NormalNavKey : TitledNavKey {
         @Serializable data object ControlManager : Settings {
             @Contextual override val title: AndroidStringText = androidText(R.string.settings_tab_control_manage)
         }
-        /** 关于屏幕 */
-        @Serializable data object AboutInfo : Settings {
-            @Contextual override val title: AndroidStringText = androidText(R.string.settings_tab_info_about)
-        }
     }
 
     /** 版本详细设置嵌套子屏幕 */
@@ -197,9 +193,4 @@ sealed interface NormalNavKey : TitledNavKey {
         val classes: PlatformClasses,
         val iconUrl: String? = null
     ) : NormalNavKey
-
-    /** 协议展示屏幕 */
-    @Serializable data class License(
-        val raw: Int
-    ): NormalNavKey
 }

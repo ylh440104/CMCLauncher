@@ -55,7 +55,6 @@ import com.cmc.launcher.game.version.installed.Version
 import com.cmc.launcher.game.version.installed.VersionsManager
 import com.cmc.launcher.notification.NotificationManager
 import com.cmc.launcher.path.PathManager
-import com.cmc.launcher.path.URL_SUPPORT
 import com.cmc.launcher.setting.AllSettings
 import com.cmc.launcher.ui.AndroidStringText
 import com.cmc.launcher.ui.androidText
@@ -85,7 +84,6 @@ import com.cmc.launcher.ui.theme.showThemed
 import com.cmc.launcher.ui.toAndroidString
 import com.cmc.launcher.ui.vulkan_checker.VCOperation
 import com.cmc.launcher.ui.vulkan_checker.VulkanChecker
-import com.cmc.launcher.upgrade.TooFrequentOperationException
 import com.cmc.launcher.utils.compareLangTag
 import com.cmc.launcher.utils.copyText
 import com.cmc.launcher.utils.festival.getTodayFestivals
@@ -99,8 +97,6 @@ import com.cmc.launcher.viewmodel.BackgroundViewModel
 import com.cmc.launcher.viewmodel.ErrorViewModel
 import com.cmc.launcher.viewmodel.EventViewModel
 import com.cmc.launcher.viewmodel.LaunchGameViewModel
-import com.cmc.launcher.viewmodel.LauncherUpgradeOperation
-import com.cmc.launcher.viewmodel.LauncherUpgradeViewModel
 import com.cmc.launcher.viewmodel.LogShareViewModel
 import com.cmc.launcher.viewmodel.LogsUploadViewModel
 import com.cmc.launcher.viewmodel.ModifyVersionOperation
@@ -110,8 +106,6 @@ import com.cmc.launcher.viewmodel.ModpackImportOperation
 import com.cmc.launcher.viewmodel.ModpackImportViewModel
 import com.cmc.launcher.viewmodel.ModpackVersionNameOperation
 import com.cmc.launcher.viewmodel.ScreenBackStackViewModel
-import com.cmc.launcher.viewmodel.SponsorsDialog
-import com.cmc.launcher.viewmodel.SponsorsViewModel
 import com.cmc.launcher.viewmodel.VulkanCheckerViewModel
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.Dispatchers
@@ -175,12 +169,10 @@ class MainActivity : BaseAppCompatActivity() {
     /**
      * 启动器更新状态 ViewModel
      */
-    val launcherUpgradeViewModel: LauncherUpgradeViewModel by viewModels()
 
     /**
      * 当月赞助者 ViewModel
      */
-    private val sponsorsViewModel: SponsorsViewModel by viewModels()
 
     /**
      * 游戏日志分享菜单 ViewModel
@@ -224,19 +216,7 @@ class MainActivity : BaseAppCompatActivity() {
         //初始化通知管理（创建渠道）
         NotificationManager.initManager(this)
 
-        //检查更新
-        if (!isImporting && launcherUpgradeViewModel.operation == LauncherUpgradeOperation.None) {
-            lifecycleScope.launch {
-                launcherUpgradeViewModel.checkOnAppStart()
-            }
-        }
 
-        //拉取当月赞助者数据
-        lifecycleScope.launch {
-            sponsorsViewModel.loadOnStart(
-                showLastMonth = GuideProgress.isPlayed(GuideKeys.Main) && !isImporting
-            )
-        }
 
         //错误信息展示
         lifecycleScope.launch {
@@ -267,12 +247,6 @@ class MainActivity : BaseAppCompatActivity() {
                         withContext(Dispatchers.Main) {
                             this@MainActivity.openLink(url)
                         }
-                    }
-                    is EventViewModel.Event.CheckUpdate -> {
-                        checkUpdate()
-                    }
-                    is EventViewModel.Event.ShowSponsors -> {
-                        sponsorsViewModel.openDialog()
                     }
                     is EventViewModel.Event.KeepScreen -> {
                         keepScreen(event.on)
@@ -325,7 +299,6 @@ class MainActivity : BaseAppCompatActivity() {
         }
 
         val finishedGame = AllSettings.finishedGame
-        val showSponsorship = AllSettings.showSponsorship
 
         val festivals = getTodayFestivals(
             containsChinese = isChinese(this@MainActivity)
@@ -413,24 +386,6 @@ class MainActivity : BaseAppCompatActivity() {
                     }
                 }
 
-                //显示赞助支持的小弹窗
-                if (!isImporting && finishedGame.state >= 100 && showSponsorship.state) {
-                    SimpleAlertDialog(
-                        title = stringResource(R.string.about_sponsor),
-                        text = stringResource(R.string.game_saponsorship_finished_game, finishedGame.state),
-                        dismissText = stringResource(R.string.generic_close),
-                        onDismiss = {
-                            showSponsorship.save(false)
-                        },
-                        onConfirm = {
-                            showSponsorship.save(false)
-                            eventViewModel.sendEvent(
-                                EventViewModel.Event.OpenLink(URL_SUPPORT)
-                            )
-                        }
-                    )
-                }
-
                 ModpackImportOperation(
                     operation = modpackImportViewModel.importOperation,
                     changeOperation = { modpackImportViewModel.importOperation = it },
@@ -504,24 +459,6 @@ class MainActivity : BaseAppCompatActivity() {
                     }
                 )
 
-                //检查更新操作流程
-                LauncherUpgradeOperation(
-                    operation = launcherUpgradeViewModel.operation,
-                    onChanged = { launcherUpgradeViewModel.operation = it },
-                    onIgnoredClick = { ver ->
-                        AllSettings.lastIgnoredVersion.save(ver)
-                    },
-                    onLinkClick = { eventViewModel.sendEvent(EventViewModel.Event.OpenLink(it)) }
-                )
-
-                //当月赞助者对话框 / 上月赞助者结算报告
-                SponsorsDialog(
-                    viewModel = sponsorsViewModel,
-                    onSupportClick = {
-                        eventViewModel.sendEvent(EventViewModel.Event.OpenLink(URL_SUPPORT))
-                    }
-                )
-
                 //版本修改操作流程
                 ModifyVersionOperation(
                     operation = modifyVersionViewModel.installOperation,
@@ -592,37 +529,6 @@ class MainActivity : BaseAppCompatActivity() {
         withContext(Dispatchers.Main) {
             val (result, useTurnip) = vulkanCheckerViewModel.check(version)
             vulkanCheckerViewModel.changeOperation(VCOperation.Result(result, useTurnip))
-        }
-    }
-
-    /**
-     * 检查启动器更新
-     */
-    private fun checkUpdate() {
-        lifecycleScope.launch(Dispatchers.IO) {
-            try {
-                val success = launcherUpgradeViewModel.checkManually(
-                    onInProgress = {
-                        withContext(Dispatchers.Main) {
-                            Toast.makeText(this@MainActivity, getString(R.string.generic_in_progress), Toast.LENGTH_SHORT).show()
-                        }
-                    },
-                    onIsLatest = {
-                        withContext(Dispatchers.Main) {
-                            Toast.makeText(this@MainActivity, getString(R.string.upgrade_is_latest), Toast.LENGTH_SHORT).show()
-                        }
-                    }
-                )
-                if (!success) throw RuntimeException()
-            } catch (_: TooFrequentOperationException) {
-                //太频繁了
-                return@launch
-            } catch (_: Exception) {
-                withContext(Dispatchers.Main) {
-                    Toast.makeText(this@MainActivity, getString(R.string.upgrade_get_remote_failed), Toast.LENGTH_SHORT).show()
-                }
-                return@launch
-            }
         }
     }
 
