@@ -29,6 +29,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -189,6 +190,89 @@ fun LauncherScreen(
                 }
             }
 
+            val isPortraitLayout = screenType == ScreenType.Phone || maxWidth < 600.dp
+            val isActionMenuTaller = screenType == ScreenType.Tablet && !isPortraitLayout
+
+            if (isPortraitLayout) {
+                CompositionLocalProvider(
+                    LocalUriHandler provides object : UriHandler {
+                        override fun openUri(uri: String) {
+                            onOpenLink(uri)
+                        }
+                    }
+                ) {
+                Column(
+                    modifier = Modifier
+                        .guideNode(
+                            key = GuideKeys.Main.Step.CardTip,
+                            holeRadius = 0.dp
+                        )
+                        .fillMaxSize()
+                ) {
+                    CmcHeroBanner(
+                        modifier = Modifier.padding(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 2.dp),
+                        title = BuildKeys.LAUNCHER_NAME,
+                        subtitle = Cmc.TAGLINE,
+                        accent = MaterialTheme.colorScheme.primary
+                    )
+                    CmcQuickActionRow(
+                        modifier = Modifier.padding(start = 12.dp, end = 12.dp, top = 6.dp),
+                        actions = listOf(
+                            CmcAction(
+                                label = stringResource(R.string.generic_download),
+                                caption = "版本 / 整合包",
+                                accent = Cmc.Accent,
+                                onClick = {
+                                    backStackViewModel.navigateToDownload()
+                                }
+                            ),
+                            CmcAction(
+                                label = stringResource(R.string.page_title_version_manage),
+                                caption = "已安装",
+                                accent = Cmc.Blue,
+                                onClick = toVersionManageScreen
+                            ),
+                            CmcAction(
+                                label = "账号",
+                                caption = stringResource(R.string.settings_tab_launcher),
+                                accent = MaterialTheme.colorScheme.tertiary,
+                                onClick = toAccountManageScreen
+                            )
+                        )
+                    )
+                    ContentMenu(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .weight(1f),
+                        isVisible = isVisible,
+                        onLaunchGame = { version ->
+                            onLaunchGame(version)
+                        },
+                        onQuickPlayServer = onQuickPlayServer,
+                        onOpenVersionSettings = navigateToVersions
+                    )
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .navigationBarsPadding()
+                            .padding(horizontal = 12.dp, vertical = 6.dp)
+                    ) {
+                        ActionMenu(
+                            modifier = Modifier.fillMaxWidth(),
+                            isVisible = isVisible,
+                            isTaller = false,
+                            dockedSide = dockedSide,
+                            onLaunchGame = onLaunchGame,
+                            swapDirection = AnimatedDirection.Bottom,
+                            pickUpScale = { 1f },
+                            toAccountManageScreen = toAccountManageScreen,
+                            toVersionManageScreen = toVersionManageScreen,
+                            toVersionSettingsScreen = toVersionSettingsScreen
+                        )
+                    }
+                }
+                }
+            } else {
             // 内容区域
             Row(modifier = Modifier.fillMaxSize()) {
                 // ActionMenu 对接到了 Start，留出空位
@@ -261,7 +345,6 @@ fun LauncherScreen(
                 }
             }
 
-            val isActionMenuTaller = screenType == ScreenType.Tablet
             CompositionLocalProvider(LocalActionMenuDrag provides dragState) {
                 Box(
                     modifier = Modifier
@@ -289,6 +372,7 @@ fun LauncherScreen(
                         toVersionSettingsScreen = toVersionSettingsScreen
                     )
                 }
+            }
             }
         }
     }

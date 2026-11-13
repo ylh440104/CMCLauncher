@@ -36,8 +36,8 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import com.cmc.launcher.ui.components.BackgroundCard
 import com.cmc.launcher.ui.components.TitleAndSummary
+import top.yukonga.miuix.kmp.basic.Card as MiuixCard
 
 /**
  * 根据卡片在UI组中的位置，选择不同的圆角形状
@@ -170,13 +170,12 @@ fun SettingsCard(
     innerShape: Dp = 4.dp,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    val shape = rememberSettingsCardShape(position, outerShape, innerShape)
-
-    BackgroundCard(
+    MiuixCard(
         modifier = modifier,
-        shape = shape,
-        content = content
-    )
+        cornerRadius = 22.dp
+    ) {
+        content()
+    }
 }
 
 @Composable
@@ -189,15 +188,13 @@ fun SettingsCard(
     enabled: Boolean = true,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    val shape = rememberSettingsCardShape(position, outerShape, innerShape)
-
-    BackgroundCard(
+    MiuixCard(
         modifier = modifier,
-        shape = shape,
-        onClick = onClick,
-        enabled = enabled,
-        content = content
-    )
+        cornerRadius = 22.dp,
+        onClick = onClick
+    ) {
+        content()
+    }
 }
 
 @Composable
@@ -215,13 +212,10 @@ fun SettingsCard(
     trailingIcon: (@Composable RowScope.() -> Unit)? = null,
     enabled: Boolean = true
 ) {
-    val shape = rememberSettingsCardShape(position, outerShape, innerShape)
-
-    BackgroundCard(
+    MiuixCard(
         modifier = modifier,
-        shape = shape,
-        onClick = onClick,
-        enabled = enabled
+        cornerRadius = 22.dp,
+        onClick = onClick
     ) {
         Row(
             modifier = Modifier
