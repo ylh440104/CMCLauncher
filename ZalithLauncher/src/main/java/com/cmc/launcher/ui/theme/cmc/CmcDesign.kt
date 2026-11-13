@@ -29,10 +29,10 @@ object Cmc {
     val Blue = Color(0xFF4C8DFF)
     val Ink = Color(0xFF06120E)
 
-    val inkDark = Color(0xFF0B1220)
-    val inkDarkHigh = Color(0xFF16202F)
-    val inkLight = Color(0xFFF3F7F4)
-    val inkLightHigh = Color(0xFFE7EEE9)
+    val inkDark = Color(0xFF0D0D0F)
+    val inkDarkHigh = Color(0xFF1A1A1D)
+    val inkLight = Color(0xFFF5F5F5)
+    val inkLightHigh = Color(0xFFECECEC)
 }
 
 val CmcShapes = Shapes(
@@ -46,18 +46,18 @@ val CmcShapes = Shapes(
 fun ColorScheme.cmcBrand(dark: Boolean): ColorScheme {
     val bg = if (dark) Cmc.inkDark else Cmc.inkLight
     val surfaceHigh = if (dark) Cmc.inkDarkHigh else Cmc.inkLightHigh
-    val onBg = if (dark) Color(0xFFE6F1EA) else Color(0xFF101B15)
-    val onMuted = if (dark) Color(0xFF9DB3A7) else Color(0xFF4A5A51)
+    val onBg = if (dark) Color(0xFFF2F2F2) else Color(0xFF191919)
+    val onMuted = if (dark) Color(0xFF9E9E9E) else Color(0xFF8C8C8C)
     return copy(
         primary = Cmc.Accent,
         onPrimary = Cmc.Ink,
-        primaryContainer = if (dark) Color(0xFF14402F) else Color(0xFFBDF3DC),
-        onPrimaryContainer = if (dark) Color(0xFFBDF3DC) else Color(0xFF04301F),
+        primaryContainer = if (dark) Color(0xFF123327) else Color(0xFFA8E9CC),
+        onPrimaryContainer = if (dark) Color(0xFFA8E9CC) else Color(0xFF0C2A1D),
         inversePrimary = if (dark) Cmc.AccentDeep else Cmc.Accent,
         secondary = if (dark) Cmc.Blue else Color(0xFF2A5BD7),
         onSecondary = Color.White,
-        secondaryContainer = if (dark) Color(0xFF1B2B4A) else Color(0xFFD8E3FF),
-        onSecondaryContainer = if (dark) Color(0xFFCBDCFF) else Color(0xFF0B2354),
+        secondaryContainer = if (dark) Color(0xFF1E2A3F) else Color(0xFFDCE5F5),
+        onSecondaryContainer = if (dark) Color(0xFFCCDCF5) else Color(0xFF12264A),
         tertiary = if (dark) Color(0xFFF5C86B) else Color(0xFF8A5A00),
         onTertiary = Cmc.Ink,
         tertiaryContainer = if (dark) Color(0xFF3A2D0C) else Color(0xFFFFE6AE),
@@ -68,25 +68,25 @@ fun ColorScheme.cmcBrand(dark: Boolean): ColorScheme {
         onSurface = onBg,
         surfaceVariant = surfaceHigh,
         onSurfaceVariant = onMuted,
-        surfaceDim = if (dark) Color(0xFF070D16) else Color(0xFFE3EAE5),
-        surfaceBright = if (dark) Color(0xFF22303F) else Color(0xFFFFFFFF),
-        surfaceContainerLowest = if (dark) Color(0xFF060B12) else Color(0xFFFFFFFF),
-        surfaceContainerLow = if (dark) Color(0xFF0F1724) else Color(0xFFF8FBF9),
-        surfaceContainer = if (dark) Color(0xFF121B29) else Color(0xFFF0F5F2),
-        surfaceContainerHigh = if (dark) Color(0xFF17212F) else Color(0xFFE9F0EB),
-        surfaceContainerHighest = if (dark) Color(0xFF1D2836) else Color(0xFFE2EAE5),
-        outline = if (dark) Color(0xFF3A4A58) else Color(0xFFB4C2B9),
-        outlineVariant = if (dark) Color(0xFF283643) else Color(0xFFCEDAD2),
-        inverseSurface = if (dark) Color(0xFFE6F1EA) else Color(0xFF16202F),
-        inverseOnSurface = if (dark) Color(0xFF0B1220) else Color(0xFFE6F1EA)
+        surfaceDim = if (dark) Color(0xFF0A0A0C) else Color(0xFFE8E8E8),
+        surfaceBright = if (dark) Color(0xFF282829) else Color(0xFFFFFFFF),
+        surfaceContainerLowest = if (dark) Color(0xFF09090B) else Color(0xFFFFFFFF),
+        surfaceContainerLow = if (dark) Color(0xFF141416) else Color(0xFFFAFAFA),
+        surfaceContainer = if (dark) Color(0xFF121B29) else Color(0xFFF0F0F0),
+        surfaceContainerHigh = if (dark) Color(0xFF1C1C1F) else Color(0xFFEAEAEA),
+        surfaceContainerHighest = if (dark) Color(0xFF232326) else Color(0xFFE6E6E6),
+        outline = if (dark) Color(0xFF3D3D42) else Color(0xFFB5B5BA),
+        outlineVariant = if (dark) Color(0xFF2B2B2E) else Color(0xFFD0D0D0),
+        inverseSurface = if (dark) Color(0xFFF2F2F2) else Color(0xFF1F1F22),
+        inverseOnSurface = if (dark) Color(0xFF0B1220) else Color(0xFFF2F2F2)
     )
 }
 
 fun cmcBackgroundBrush(dark: Boolean): Brush = Brush.verticalGradient(
     colors = if (dark) {
-        listOf(Color(0xFF0B1220), Color(0xFF0E1A24), Color(0xFF0B1220))
+        listOf(Color(0xFF0D0D0F), Color(0xFF0D0D0F), Color(0xFF0D0D0F))
     } else {
-        listOf(Color(0xFFF3F7F4), Color(0xFFEAF3EE), Color(0xFFF3F7F4))
+        listOf(Color(0xFFF5F5F5), Color(0xFFF5F5F5), Color(0xFFF5F5F5))
     }
 )
 

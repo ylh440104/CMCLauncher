@@ -701,10 +701,10 @@ private fun miuixDarkColors() = top.yukonga.miuix.kmp.theme.darkColorScheme(
     onPrimary = Cmc.Ink,
     secondary = Cmc.Blue,
     onSecondary = Color.White,
-    surface = Cmc.inkDark,
-    onSurface = Color(0xFFE6F1EA),
-    background = Cmc.inkDark,
-    onBackground = Color(0xFFE6F1EA)
+    surface = Color(0xFF0D0D0F),
+    onSurface = Color(0xFFF2F2F2),
+    background = Color(0xFF0D0D0F),
+    onBackground = Color(0xFFF2F2F2)
 )
 
 private fun miuixLightColors() = top.yukonga.miuix.kmp.theme.lightColorScheme(
@@ -712,8 +712,8 @@ private fun miuixLightColors() = top.yukonga.miuix.kmp.theme.lightColorScheme(
     onPrimary = Color.White,
     secondary = Color(0xFF2A5BD7),
     onSecondary = Color.White,
-    surface = Cmc.inkLight,
-    onSurface = Color(0xFF101B15),
-    background = Cmc.inkLight,
-    onBackground = Color(0xFF101B15)
+    surface = Color(0xFFF5F5F5),
+    onSurface = Color(0xFF191919),
+    background = Color(0xFFF5F5F5),
+    onBackground = Color(0xFF191919)
 )

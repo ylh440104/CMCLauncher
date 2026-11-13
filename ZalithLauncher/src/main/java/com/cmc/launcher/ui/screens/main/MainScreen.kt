@@ -29,6 +29,7 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -74,6 +75,8 @@ import androidx.compose.ui.unit.dp
 import androidx.constraintlayout.compose.ConstraintLayout
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation3.runtime.entryProvider
+import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.yukonga.miuix.kmp.basic.IconButton as MiuixIconButton
 import com.cmc.launcher.BuildKeys
 import com.cmc.launcher.R
 import com.cmc.launcher.coroutine.TaskSystem
@@ -185,7 +188,7 @@ fun MainScreen(
             TopBar(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(56.dp),
+                    .height(64.dp),
                 mainScreenKey = mainScreenKey,
                 inLauncherScreen = inLauncherScreen,
                 taskRunning = taskRunning,
@@ -382,7 +385,7 @@ private fun <E: TitledNavKey> TopBar(
                         end.linkTo(parent.end, margin = 12.dp)
                     },
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 AnimatedVisibility(
                     visible = !(isTasksExpanded || taskRunning),
@@ -393,55 +396,47 @@ private fun <E: TitledNavKey> TopBar(
                         targetOffsetY = { -50 }
                     ) + fadeOut()
                 ) {
-                    Row(
-                        modifier = Modifier
-                            .clip(shape = MaterialTheme.shapes.large)
-                            .clickable { changeExpandedState() }
-                            .padding(all = 8.dp)
-                            .width(120.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                    MiuixIconButton(
+                        onClick = { changeExpandedState() }
                     ) {
-                        LinearProgressIndicator(modifier = Modifier.weight(1f))
                         Icon(
                             modifier = Modifier.size(22.dp),
                             painter = painterResource(R.drawable.ic_assignment_filled),
-                            contentDescription = stringResource(R.string.main_task_menu)
+                            contentDescription = stringResource(R.string.main_task_menu),
+                            tint = MiuixTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
 
-                IconButton(
+                TopBarIconItem(
+                    selected = false,
+                    painter = painterResource(R.drawable.ic_folder_filled),
+                    text = null,
                     onClick = openFileManager
-                ) {
-                    Icon(
-                        painter = painterResource(R.drawable.ic_folder_filled),
-                        contentDescription = null
-                    )
-                }
+                )
 
-                TopBarRailItem(
+                TopBarIconItem(
                     selected = inMultiplayerScreen,
                     painter = painterResource(R.drawable.ic_group_filled),
-                    text = stringResource(R.string.terracotta),
+                    text = null,
                     onClick = {
                         if (!inMultiplayerScreen) toMultiplayerScreen()
                     },
                 )
 
-                TopBarRailItem(
+                TopBarIconItem(
                     selected = inDownloadScreen,
                     painter = painterResource(R.drawable.ic_download_2_filled),
-                    text = stringResource(R.string.generic_download),
+                    text = null,
                     onClick = {
                         if (!inDownloadScreen) toDownloadScreen()
                     },
                 )
 
-                TopBarRailItem(
+                TopBarIconItem(
                     selected = inSettingsScreen,
                     painter = painterResource(R.drawable.ic_settings_filled),
-                    text = stringResource(R.string.generic_setting),
+                    text = null,
                     onClick = {
                         if (!inSettingsScreen) toSettingsScreen()
                     },
@@ -452,38 +447,46 @@ private fun <E: TitledNavKey> TopBar(
 }
 
 @Composable
-private fun TopBarRailItem(
+private fun TopBarIconItem(
     selected: Boolean,
     painter: Painter,
-    text: String,
+    text: String?,
     modifier: Modifier = Modifier,
-    onClick: () -> Unit = {},
-    textStyle: TextStyle = MaterialTheme.typography.labelMedium
+    onClick: () -> Unit = {}
 ) {
-    TextRailItem(
-        modifier = modifier,
-        onClick = onClick,
-        text = {
-            AnimatedVisibility(visible = selected) {
-                Row {
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = text,
-                        style = textStyle
-                    )
-                }
-            }
-        },
-        icon = {
-            Icon(
-                painter = painter,
-                contentDescription = text
+    val iconSize = if (text != null) 22.dp else 24.dp
+    Box(
+        modifier = modifier
+            .size(40.dp)
+            .clip(CircleShape)
+            .background(
+                if (selected) MiuixTheme.colorScheme.primary.copy(alpha = 0.16f)
+                else Color.Transparent
             )
-        },
-        selected = selected,
-        selectedPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
-        unSelectedPadding = PaddingValues(all = 8.dp),
-    )
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Icon(
+                modifier = Modifier.size(iconSize),
+                painter = painter,
+                contentDescription = text,
+                tint = if (selected) MiuixTheme.colorScheme.primary
+                else MiuixTheme.colorScheme.onSurfaceVariant
+            )
+            if (text != null) {
+                Text(
+                    text = text,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = if (selected) MiuixTheme.colorScheme.primary
+                    else MiuixTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
 }
 
 @Composable
