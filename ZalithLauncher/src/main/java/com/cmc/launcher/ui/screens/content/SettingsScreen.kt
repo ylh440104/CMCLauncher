@@ -60,9 +60,7 @@ import com.cmc.launcher.ui.screens.NormalNavKey
 import com.cmc.launcher.ui.screens.TitledNavKey
 import com.cmc.launcher.ui.screens.content.elements.CategoryIcon
 import com.cmc.launcher.ui.screens.content.elements.CategoryItem
-import com.cmc.launcher.ui.screens.content.settings.GameSettingsScreen
 import com.cmc.launcher.ui.screens.content.settings.JavaManageScreen
-import com.cmc.launcher.ui.screens.content.settings.RendererSettingsScreen
 import com.cmc.launcher.ui.screens.navigateOnce
 import com.cmc.launcher.ui.screens.onBack
 import com.cmc.launcher.ui.screens.rememberTransitionSpec
@@ -107,9 +105,7 @@ fun SettingsScreen(
 }
 
 private val settingItems = listOf(
-    CategoryItem(NormalNavKey.Settings.Renderer, { CategoryIcon(R.drawable.ic_video_settings, R.string.settings_tab_renderer) }, R.string.settings_tab_renderer),
-    CategoryItem(NormalNavKey.Settings.Game, { CategoryIcon(R.drawable.ic_rocket_launch_filled, R.string.settings_tab_game) }, R.string.settings_tab_game),
-    CategoryItem(NormalNavKey.Settings.JavaManager, { CategoryIcon(R.drawable.ic_java, R.string.settings_tab_java_manage) }, R.string.settings_tab_java_manage, division = true)
+    CategoryItem(NormalNavKey.Settings.JavaManager, { CategoryIcon(R.drawable.ic_java, R.string.settings_tab_java_manage) }, R.string.settings_tab_java_manage)
 )
 
 @Composable
@@ -167,12 +163,6 @@ private fun NavigationUI(
             transitionSpec = rememberTransitionSpec(),
             popTransitionSpec = rememberTransitionSpec(),
             entryProvider = entryProvider {
-                entry<NormalNavKey.Settings.Renderer> {
-                    RendererSettingsScreen(key, settingsScreenKey, mainScreenKey, eventViewModel)
-                }
-                entry<NormalNavKey.Settings.Game> {
-                    GameSettingsScreen(key, settingsScreenKey, mainScreenKey, eventViewModel)
-                }
                 entry<NormalNavKey.Settings.JavaManager> {
                     JavaManageScreen(key, settingsScreenKey, mainScreenKey, eventViewModel, submitError)
                 }
