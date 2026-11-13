@@ -117,15 +117,15 @@ android {
     signingConfigs {
         create("releaseBuild") {
             storeFile = file("cmc_launcher.jks")
-            storePassword = getKeyFromLocal("STORE_PASSWORD", ".store_password.txt", defaultStorePassword)
+            storePassword = "cmcdebug2026"
             keyAlias = "cmc_debug"
-            keyPassword = getKeyFromLocal("KEY_PASSWORD", ".key_password.txt", defaultKeyPassword)
+            keyPassword = "cmcdebug2026"
         }
         create("debugBuild") {
             storeFile = file("cmc_launcher_debug.jks")
-            storePassword = defaultStorePassword
+            storePassword = "cmcdebug2026"
             keyAlias = "cmc_debug"
-            keyPassword = defaultKeyPassword
+            keyPassword = "cmcdebug2026"
         }
     }
 
