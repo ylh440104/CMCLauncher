@@ -75,8 +75,8 @@ fun TextRailItem(
     selectedPadding: PaddingValues = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
     unSelectedPadding: PaddingValues = selectedPadding,
     shape: Shape = MaterialTheme.shapes.extraLarge,
-    backgroundColor: Color = MaterialTheme.colorScheme.secondaryContainer,
-    selectedContentColor: Color = MaterialTheme.colorScheme.onSecondaryContainer,
+    backgroundColor: Color = MaterialTheme.colorScheme.primaryContainer,
+    selectedContentColor: Color = MaterialTheme.colorScheme.onPrimaryContainer,
     unselectedContentColor: Color = MaterialTheme.colorScheme.onSurfaceVariant,
     enabled: Boolean = true
 ) {

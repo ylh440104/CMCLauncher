@@ -19,6 +19,12 @@
 package com.cmc.launcher.ui.screens.content.home.version
 
 import androidx.compose.foundation.basicMarquee
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.text.font.FontWeight
+import com.cmc.launcher.ui.theme.cmc.Cmc
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Arrangement
@@ -423,16 +429,28 @@ private fun CardTexts(
 @Composable
 private fun TextLaunchButton(version: Version, modifier: Modifier = Modifier) {
     val onLaunch = LocalHomeCardLauncher.current
-    Button(onClick = { onLaunch(version) }, modifier = modifier) {
-        Icon(
-            modifier = Modifier.size(16.dp),
-            painter = painterResource(R.drawable.ic_play_arrow_filled),
-            contentDescription = null
-        )
-        Text(
-            modifier = Modifier.padding(start = 6.dp),
-            text = stringResource(R.string.main_launch_game)
-        )
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(50))
+            .background(Brush.horizontalGradient(listOf(Cmc.Accent, Cmc.Blue)))
+            .clickable { onLaunch(version) }
+            .padding(horizontal = 14.dp, vertical = 8.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                modifier = Modifier.size(15.dp),
+                painter = painterResource(R.drawable.ic_play_arrow_filled),
+                contentDescription = null,
+                tint = Cmc.Ink
+            )
+            Text(
+                modifier = Modifier.padding(start = 5.dp),
+                text = stringResource(R.string.main_launch_game),
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.Bold,
+                color = Cmc.Ink
+            )
+        }
     }
 }
 
@@ -440,21 +458,28 @@ private fun TextLaunchButton(version: Version, modifier: Modifier = Modifier) {
 @Composable
 private fun CompactLaunchButton(version: Version, modifier: Modifier = Modifier) {
     val onLaunch = LocalHomeCardLauncher.current
-    Button(
-        onClick = { onLaunch(version) },
-        modifier = modifier,
-        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(50))
+            .background(Brush.horizontalGradient(listOf(Cmc.Accent, Cmc.Blue)))
+            .clickable { onLaunch(version) },
+        contentAlignment = Alignment.Center
     ) {
-        Icon(
-            modifier = Modifier.size(14.dp),
-            painter = painterResource(R.drawable.ic_play_arrow_filled),
-            contentDescription = null
-        )
-        Text(
-            modifier = Modifier.padding(start = 4.dp),
-            text = stringResource(R.string.main_launch_game),
-            style = MaterialTheme.typography.labelSmall
-        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                modifier = Modifier.size(13.dp),
+                painter = painterResource(R.drawable.ic_play_arrow_filled),
+                contentDescription = null,
+                tint = Cmc.Ink
+            )
+            Text(
+                modifier = Modifier.padding(start = 4.dp),
+                text = stringResource(R.string.main_launch_game),
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.Bold,
+                color = Cmc.Ink
+            )
+        }
     }
 }
 
@@ -462,16 +487,19 @@ private fun CompactLaunchButton(version: Version, modifier: Modifier = Modifier)
 @Composable
 private fun IconLaunchButton(version: Version, modifier: Modifier = Modifier) {
     val onLaunch = LocalHomeCardLauncher.current
-    Button(
-        onClick = { onLaunch(version) },
-        modifier = modifier,
-        shape = CircleShape,
-        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+    Box(
+        modifier = modifier
+            .size(34.dp)
+            .clip(CircleShape)
+            .background(Brush.linearGradient(listOf(Cmc.Accent, Cmc.Blue)))
+            .clickable { onLaunch(version) },
+        contentAlignment = Alignment.Center
     ) {
         Icon(
-            modifier = Modifier.size(14.dp),
+            modifier = Modifier.size(17.dp),
             painter = painterResource(R.drawable.ic_play_arrow_filled),
-            contentDescription = stringResource(R.string.main_launch_game)
+            contentDescription = stringResource(R.string.main_launch_game),
+            tint = Cmc.Ink
         )
     }
 }
