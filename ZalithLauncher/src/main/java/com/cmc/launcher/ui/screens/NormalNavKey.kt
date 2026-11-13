@@ -72,14 +72,6 @@ sealed interface NormalNavKey : TitledNavKey {
 
     /** 设置嵌套子屏幕 */
     sealed interface Settings : NormalNavKey {
-        /** 渲染器设置屏幕 */
-        @Serializable data object Renderer : Settings {
-            @Contextual override val title: AndroidStringText = androidText(R.string.settings_tab_renderer)
-        }
-        /** 游戏设置屏幕 */
-        @Serializable data object Game : Settings {
-            @Contextual override val title: AndroidStringText = androidText(R.string.settings_tab_game)
-        }
         /** Java管理屏幕 */
         @Serializable data object JavaManager : Settings {
             @Contextual override val title: AndroidStringText = androidText(R.string.settings_tab_java_manage)

@@ -46,7 +46,7 @@ sealed interface NestedNavKey {
     /** 设置屏幕 */
     @Serializable class Settings : BackStackNavKey<TitledNavKey>(androidText(R.string.generic_setting)) {
         init {
-            backStack.addIfEmpty(NormalNavKey.Settings.Renderer)
+            backStack.addIfEmpty(NormalNavKey.Settings.JavaManager)
         }
     }
     /** 版本详细设置屏幕 */
