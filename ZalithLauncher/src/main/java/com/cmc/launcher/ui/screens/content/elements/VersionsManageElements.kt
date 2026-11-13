@@ -735,7 +735,9 @@ fun VersionItemLayout(
                     .background(
                         if (selected) Brush.verticalGradient(
                             listOf(Cmc.Accent, Cmc.Blue)
-                        ) else Color.Transparent
+                        ) else Brush.verticalGradient(
+                            listOf(Color.Transparent, Color.Transparent)
+                        )
                     )
             )
             Spacer(Modifier.width(10.dp))
