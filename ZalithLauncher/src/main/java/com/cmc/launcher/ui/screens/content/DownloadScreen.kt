@@ -48,6 +48,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.navigation3.runtime.NavBackStack
 import androidx.navigation3.runtime.entryProvider
+import top.yukonga.miuix.kmp.basic.TabRow
 import com.cmc.launcher.R
 import com.cmc.launcher.game.download.addon.favorites.FavoriteProjectsRepository
 import com.cmc.launcher.game.download.addon.platform.Platform
@@ -177,35 +178,23 @@ private fun TabMenu(
     )
 
     val ctx = rememberAnimatedContext(isVisible = isVisible)
-    val scrollState = rememberScrollState()
+    val tabs = downloadsList.map { stringResource(it.textRes) }
+    val selected = downloadsList.indexOfFirst { it.key == backScreenViewModel.downloadScreen.currentKey }.coerceAtLeast(0)
+
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .fadeEdge(scrollState)
             .animated(ctx, from = AnimatedDirection.Top)
-            .horizontalScroll(scrollState)
             .padding(horizontal = 12.dp, vertical = 8.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalAlignment = Alignment.CenterVertically
+        horizontalArrangement = Arrangement.Center
     ) {
-        downloadsList.forEach { item ->
-            FilterChip(
-                selected = backScreenViewModel.downloadScreen.currentKey == item.key,
-                onClick = {
-                    backStack.navigateOnce(item.key)
-                },
-                label = {
-                    Text(
-                        text = stringResource(item.textRes),
-                        maxLines = 1,
-                        style = MaterialTheme.typography.labelLarge
-                    )
-                },
-                leadingIcon = {
-                    item.icon()
-                }
-            )
-        }
+        TabRow(
+            tabs = tabs,
+            selectedTabIndex = selected,
+            onTabSelected = { index ->
+                backStack.navigateOnce(downloadsList[index].key)
+            }
+        )
     }
 }
 
