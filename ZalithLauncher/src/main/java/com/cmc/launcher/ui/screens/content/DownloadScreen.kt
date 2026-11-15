@@ -19,6 +19,26 @@
 package com.cmc.launcher.ui.screens.content
 
 import androidx.compose.foundation.basicMarquee
+import androidx.activity.compose.BackHandler
+import androidx.annotation.DrawableRes
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.Icon
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -136,73 +156,207 @@ fun DownloadScreen(
         FavoriteProjectsRepository.ensureLoaded()
     }
 
+    var showHub by remember { mutableStateOf(true) }
+
+    BackHandler(enabled = !showHub) {
+        showHub = true
+    }
+
     BaseScreen(
         screenKey = key,
         currentKey = backScreenViewModel.mainScreen.currentKey,
         useClassEquality = true
     ) { isVisible: Boolean ->
-                Column(modifier = Modifier.fillMaxSize()) {
-            TabMenu(
-                modifier = Modifier.fillMaxWidth(),
-                isVisible = isVisible,
-                backStack = key.backStack,
-                backScreenViewModel = backScreenViewModel,
-            )
-            NavigationUI(
-                key = key,
-                backScreenViewModel = backScreenViewModel,
-                eventViewModel = eventViewModel,
-                modpackImportViewModel = modpackImportViewModel,
-                submitError = submitError,
-                modifier = Modifier.fillMaxWidth().weight(1f)
-            )
+        Box(modifier = Modifier.fillMaxSize()) {
+            if (!showHub) {
+                NavigationUI(
+                    key = key,
+                    backScreenViewModel = backScreenViewModel,
+                    eventViewModel = eventViewModel,
+                    modpackImportViewModel = modpackImportViewModel,
+                    submitError = submitError,
+                    modifier = Modifier.fillMaxSize()
+                )
+            } else {
+                DownloadHub(
+                    isVisible = isVisible,
+                    backScreenViewModel = backScreenViewModel,
+                    onOpenCategory = { target ->
+                        showHub = false
+                        key.backStack.navigateOnce(target)
+                    }
+                )
+            }
+        }
+    }
+}
+
+private data class HubEntry(
+    val target: TitledNavKey,
+    val title: String,
+    val caption: String,
+    @DrawableRes val icon: Int,
+    val container: Color,
+    val content: Color
+)
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun DownloadHub(
+    isVisible: Boolean,
+    backScreenViewModel: ScreenBackStackViewModel,
+    onOpenCategory: (TitledNavKey) -> Unit
+) {
+    val ctx = rememberAnimatedContext(isVisible = isVisible)
+    val scheme = MaterialTheme.colorScheme
+
+    val entries = listOf(
+        HubEntry(
+            target = backScreenViewModel.downloadGameScreen,
+            title = "游戏本体",
+            caption = "原版与加载器安装",
+            icon = R.drawable.ic_sports_esports_outlined,
+            container = scheme.primaryContainer,
+            content = scheme.onPrimaryContainer
+        ),
+        HubEntry(
+            target = backScreenViewModel.downloadModPackScreen,
+            title = "整合包",
+            caption = "一键装配完整环境",
+            icon = R.drawable.ic_package_2_outlined,
+            container = scheme.secondaryContainer,
+            content = scheme.onSecondaryContainer
+        ),
+        HubEntry(
+            target = backScreenViewModel.downloadModScreen,
+            title = "模组",
+            caption = "扩展玩法内容",
+            icon = R.drawable.ic_extension_outlined,
+            container = scheme.tertiaryContainer,
+            content = scheme.onTertiaryContainer
+        ),
+        HubEntry(
+            target = backScreenViewModel.downloadResourcePackScreen,
+            title = "资源包",
+            caption = "替换材质与音效",
+            icon = R.drawable.ic_format_paint_outlined,
+            container = scheme.primaryContainer,
+            content = scheme.onPrimaryContainer
+        ),
+        HubEntry(
+            target = backScreenViewModel.downloadSavesScreen,
+            title = "存档",
+            caption = "下载他人世界",
+            icon = R.drawable.ic_public,
+            container = scheme.secondaryContainer,
+            content = scheme.onSecondaryContainer
+        ),
+        HubEntry(
+            target = backScreenViewModel.downloadShadersScreen,
+            title = "光影包",
+            caption = "提升画面表现",
+            icon = R.drawable.ic_lightbulb,
+            container = scheme.tertiaryContainer,
+            content = scheme.onTertiaryContainer
+        ),
+        HubEntry(
+            target = NormalNavKey.SearchId,
+            title = "按 ID 查找",
+            caption = "已知项目编号直达",
+            icon = R.drawable.ic_card,
+            container = scheme.surfaceContainerHigh,
+            content = scheme.onSurfaceVariant
+        ),
+        HubEntry(
+            target = backScreenViewModel.downloadFavoritesScreen,
+            title = "我的收藏",
+            caption = "稍后再看的内容",
+            icon = R.drawable.ic_favorite_outlined,
+            container = scheme.surfaceContainerHigh,
+            content = scheme.onSurfaceVariant
+        )
+    )
+
+    LazyVerticalGrid(
+        columns = GridCells.Fixed(2),
+        modifier = Modifier
+            .fillMaxSize()
+            .animated(ctx, from = AnimatedDirection.Top),
+        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        item(span = { GridItemSpan(maxLineSpan) }) {
+            Column(
+                modifier = Modifier.padding(start = 4.dp, top = 4.dp, bottom = 6.dp)
+            ) {
+                Text(
+                    text = "下载中心",
+                    style = MaterialTheme.typography.headlineMedium,
+                    color = scheme.onBackground
+                )
+                Text(
+                    text = "内容来自 Modrinth",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = scheme.onSurfaceVariant
+                )
+            }
+        }
+
+        items(entries) { entry ->
+            HubCard(entry = entry, onClick = { onOpenCategory(entry.target) })
         }
     }
 }
 
 @Composable
-private fun TabMenu(
-    modifier: Modifier = Modifier,
-    isVisible: Boolean,
-    backStack: NavBackStack<TitledNavKey>,
-    backScreenViewModel: ScreenBackStackViewModel,
+private fun HubCard(
+    entry: HubEntry,
+    onClick: () -> Unit
 ) {
-    val downloadsList = listOf(
-        CategoryItem(backScreenViewModel.downloadGameScreen, { CategoryIcon(R.drawable.ic_sports_esports_outlined, R.string.download_category_game) }, R.string.download_category_game),
-        CategoryItem(backScreenViewModel.downloadModPackScreen, { CategoryIcon(R.drawable.ic_package_2_outlined, R.string.download_category_modpack) }, R.string.download_category_modpack),
-        CategoryItem(backScreenViewModel.downloadModScreen, { CategoryIcon(R.drawable.ic_extension_outlined, R.string.download_category_mod) }, R.string.download_category_mod, division = true),
-        CategoryItem(backScreenViewModel.downloadResourcePackScreen, { CategoryIcon(R.drawable.ic_format_paint_outlined, R.string.download_category_resource_pack) }, R.string.download_category_resource_pack),
-        CategoryItem(backScreenViewModel.downloadSavesScreen, { CategoryIcon(R.drawable.ic_public, R.string.download_category_saves) }, R.string.download_category_saves),
-        CategoryItem(backScreenViewModel.downloadShadersScreen, { CategoryIcon(R.drawable.ic_lightbulb, R.string.download_category_shaders) }, R.string.download_category_shaders),
-        CategoryItem(NormalNavKey.SearchId, { CategoryIcon(R.drawable.ic_card, R.string.download_category_by_id) }, R.string.download_category_by_id, division = true),
-        CategoryItem(backScreenViewModel.downloadFavoritesScreen, { CategoryIcon(R.drawable.ic_favorite_outlined, R.string.download_category_favorites) }, R.string.download_category_favorites),
-    )
-
-    val ctx = rememberAnimatedContext(isVisible = isVisible)
-    val selected = downloadsList.indexOfFirst { it.key == backScreenViewModel.downloadScreen.currentKey }.coerceAtLeast(0)
-
-    ScrollableTabRow(
-        selectedTabIndex = selected,
-        modifier = modifier
+    Card(
+        modifier = Modifier
             .fillMaxWidth()
-            .animated(ctx, from = AnimatedDirection.Top),
-        edgePadding = 8.dp
+            .height(132.dp),
+        shape = MaterialTheme.shapes.extraLarge,
+        colors = CardDefaults.cardColors(containerColor = entry.container),
+        onClick = onClick
     ) {
-        downloadsList.forEachIndexed { index, item ->
-            Tab(
-                selected = index == selected,
-                onClick = { backStack.navigateOnce(item.key) },
-                text = {
-                    Text(
-                        text = stringResource(item.textRes),
-                        maxLines = 1,
-                        style = MaterialTheme.typography.labelLarge
-                    )
-                },
-                icon = {
-                    item.icon()
-                }
-            )
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.SpaceBetween
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(MaterialTheme.shapes.large)
+                    .background(entry.content.copy(alpha = 0.14f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    modifier = Modifier.size(23.dp),
+                    painter = painterResource(entry.icon),
+                    contentDescription = null,
+                    tint = entry.content
+                )
+            }
+
+            Column {
+                Text(
+                    text = entry.title,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = entry.content,
+                    maxLines = 1
+                )
+                Text(
+                    text = entry.caption,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = entry.content.copy(alpha = 0.75f),
+                    maxLines = 1
+                )
+            }
         }
     }
 }

@@ -109,6 +109,8 @@ fun SearchFilter(
     modifier: Modifier = Modifier,
     contentPadding: PaddingValues = PaddingValues(),
     enablePlatform: Boolean = true,
+    showSearchName: Boolean = true,
+    showGameVersion: Boolean = true,
     searchPlatform: Platform,
     onPlatformChange: (Platform) -> Unit = {},
     searchName: String,
