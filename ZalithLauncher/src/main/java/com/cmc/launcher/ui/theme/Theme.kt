@@ -42,7 +42,6 @@ import com.cmc.launcher.setting.enums.isLauncherInDarkTheme
 import com.cmc.launcher.ui.theme.components.activeMaskView
 import com.cmc.launcher.ui.theme.cmc.Cmc
 import com.cmc.launcher.ui.theme.cmc.CmcShapes
-import top.yukonga.miuix.kmp.theme.MiuixTheme
 import com.cmc.launcher.ui.theme.cmc.cmcBrand
 import com.cmc.launcher.utils.festival.Festival
 import com.cmc.launcher.utils.festival.LocalFestivals
@@ -681,39 +680,19 @@ fun CMCLauncherTheme(
         LocalBackgroundViewModel provides backgroundViewModel,
         LocalFestivals provides festivals
     ) {
-        val miuixColors = if (currentDarkTheme) miuixDarkColors() else miuixLightColors()
-        MiuixTheme(
-            colors = miuixColors
-        ) {
-            MaterialExpressiveTheme(
-                colorScheme = currentDisplayScheme.cmcBrand(currentDarkTheme),
-                motionScheme = MotionScheme.expressive(),
-                shapes = CmcShapes,
-                typography = AppTypography,
-                content = content
-            )
-        }
+        val useDynamicScheme =
+            dynamicColor && colorTheme == ColorThemeType.DYNAMIC && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+
+        MaterialExpressiveTheme(
+            colorScheme = if (useDynamicScheme) {
+                currentDisplayScheme
+            } else {
+                currentDisplayScheme.cmcBrand(currentDarkTheme)
+            },
+            motionScheme = MotionScheme.expressive(),
+            shapes = CmcShapes,
+            typography = AppTypography,
+            content = content
+        )
     }
 }
-
-private fun miuixDarkColors() = top.yukonga.miuix.kmp.theme.darkColorScheme(
-    primary = Cmc.Accent,
-    onPrimary = Cmc.Ink,
-    secondary = Cmc.Blue,
-    onSecondary = Color.White,
-    surface = Color(0xFF0D0D0F),
-    onSurface = Color(0xFFF2F2F2),
-    background = Color(0xFF0D0D0F),
-    onBackground = Color(0xFFF2F2F2)
-)
-
-private fun miuixLightColors() = top.yukonga.miuix.kmp.theme.lightColorScheme(
-    primary = Cmc.AccentDeep,
-    onPrimary = Color.White,
-    secondary = Color(0xFF2A5BD7),
-    onSecondary = Color.White,
-    surface = Color(0xFFF5F5F5),
-    onSurface = Color(0xFF191919),
-    background = Color(0xFFF5F5F5),
-    onBackground = Color(0xFF191919)
-)

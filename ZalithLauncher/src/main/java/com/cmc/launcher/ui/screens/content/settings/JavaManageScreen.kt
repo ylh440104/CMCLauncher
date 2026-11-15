@@ -39,6 +39,13 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Button
+import androidx.compose.material3.ElevatedCard
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import com.cmc.launcher.ui.components.CmcTag
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -154,92 +161,94 @@ fun JavaManageScreen(
             )
         }
 
-        SettingsCard(
+        Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(all = 12.dp)
-                .animated(ctx),
-            position = CardPosition.Single
+                .padding(horizontal = 12.dp)
+                .animated(ctx)
         ) {
-            CardTitleLayout {
-                Row(
-                    modifier = Modifier
-                        .padding(horizontal = 12.dp, vertical = 8.dp)
-                        .fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp, bottom = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                FilledTonalButton(
+                    onClick = { runtimes = getRuntimes(true) }
                 ) {
-                    IconTextButton(
-                        onClick = { runtimes = getRuntimes(true) },
+                    Icon(
+                        modifier = Modifier.size(18.dp),
                         painter = painterResource(R.drawable.ic_refresh),
-                        contentDescription = stringResource(R.string.generic_refresh),
-                        text = stringResource(R.string.generic_refresh),
+                        contentDescription = null
                     )
-                    ImportMultipleFileButton(
-                        extension = "xz",
-                        progressUris = { uris ->
-                            uris.forEach { uri ->
-                                progressRuntimeUri(
-                                    context = context,
-                                    uri = uri,
-                                    callRefresh = { runtimes = getRuntimes(true) },
-                                    submitError = submitError
-                                )
-                            }
-                        }
-                    )
-                    ImportSingleFileButton(
-                        extension = "jar",
-                        onClick = {
-                            selectedRuntimeForJar = null
-                        },
-                        onLongClick = { launch ->
-                            launchJarPicker = launch
-                            showSelectRuntimeDialog = true
-                        },
-                        progressUris = { uris ->
-                            uris.firstOrNull()?.let { uri ->
-                                val customRuntime = selectedRuntimeForJar
-                                selectedRuntimeForJar = null
-
-                                if (customRuntime != null) {
-                                    (context as? Activity)?.let { activity ->
-                                        executeJarWithUri(activity, uri, customRuntime.name)
-                                    }
-                                } else {
-                                    RuntimesManager.getExactJreName(8) ?: run {
-                                        eventViewModel.sendToast(androidText(R.string.multirt_no_java_8), Toast.LENGTH_LONG)
-                                        return@ImportSingleFileButton
-                                    }
-                                    (context as? Activity)?.let { activity ->
-                                        val jreName = AllSettings.javaRuntime.takeIf { AllSettings.autoPickJavaRuntime.getValue() }?.getValue()
-                                        executeJarWithUri(activity, uri, jreName)
-                                    }
-                                }
-                            }
-                        },
-                        painter = painterResource(R.drawable.ic_terminal_outlined),
-                        text = stringResource(R.string.execute_jar_title)
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        text = "刷新",
+                        style = MaterialTheme.typography.labelLarge
                     )
                 }
+                ImportMultipleFileButton(
+                    extension = "xz",
+                    progressUris = { uris ->
+                        uris.forEach { uri ->
+                            progressRuntimeUri(
+                                context = context,
+                                uri = uri,
+                                callRefresh = { runtimes = getRuntimes(true) },
+                                submitError = submitError
+                            )
+                        }
+                    }
+                )
+                ImportSingleFileButton(
+                    extension = "jar",
+                    onClick = {
+                        selectedRuntimeForJar = null
+                    },
+                    onLongClick = { launch ->
+                        launchJarPicker = launch
+                        showSelectRuntimeDialog = true
+                    },
+                    progressUris = { uris ->
+                        uris.firstOrNull()?.let { uri ->
+                            val customRuntime = selectedRuntimeForJar
+                            selectedRuntimeForJar = null
+
+                            if (customRuntime != null) {
+                                (context as? Activity)?.let { activity ->
+                                    executeJarWithUri(activity, uri, customRuntime.name)
+                                }
+                            } else {
+                                RuntimesManager.getExactJreName(8) ?: run {
+                                    eventViewModel.sendToast(androidText(R.string.multirt_no_java_8), Toast.LENGTH_LONG)
+                                    return@ImportSingleFileButton
+                                }
+                                (context as? Activity)?.let { activity ->
+                                    val jreName = AllSettings.javaRuntime.takeIf { AllSettings.autoPickJavaRuntime.getValue() }?.getValue()
+                                    executeJarWithUri(activity, uri, jreName)
+                                }
+                            }
+                        }
+                    },
+                    painter = painterResource(R.drawable.ic_terminal_outlined),
+                    text = "运行 JAR"
+                )
             }
 
             val scrollState = rememberLazyListState()
             LazyColumn(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .weight(1f)
-                    .nonInteractiveScrollbar(
-                        state = scrollState.scrollIndicatorState!!,
-                        orientation = Orientation.Vertical,
-                    ),
-                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                    .weight(1f),
+                contentPadding = PaddingValues(vertical = 6.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
                 state = scrollState,
             ) {
                 items(runtimes) { runtime ->
                     JavaRuntimeItem(
                         runtime = runtime,
-                        modifier = Modifier
-                            .padding(vertical = 6.dp),
+                        modifier = Modifier.fillMaxWidth(),
                         onDeleteClick = {
                             runtimeOperation = RuntimeOperation.PreDelete(runtime)
                         }
@@ -376,70 +385,71 @@ private fun JavaRuntimeItem(
     LaunchedEffect(Unit) {
         scale.animateTo(targetValue = 1f, animationSpec = getAnimateTween())
     }
-    Surface(
+    ElevatedCard(
         modifier = modifier.graphicsLayer(scaleY = scale.value, scaleX = scale.value),
-        color = color,
-        contentColor = contentColor,
-        shape = MaterialTheme.shapes.large,
+        shape = MaterialTheme.shapes.extraLarge,
         onClick = onClick
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 Text(
                     text = runtime.name,
-                    style = MaterialTheme.typography.titleSmall
+                    style = MaterialTheme.typography.titleMedium
                 )
-                //环境标签
-                Row(
+                FlowRow(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     if (runtime.isProvidedByLauncher) {
-                        Text(
-                            text = stringResource(R.string.multirt_runtime_provided_by_launcher),
-                            style = MaterialTheme.typography.bodySmall
+                        CmcTag(
+                            text = "内置",
+                            container = MaterialTheme.colorScheme.primaryContainer,
+                            content = MaterialTheme.colorScheme.onPrimaryContainer
                         )
                     }
-                    Text(
-                        text =  runtime.versionString?.let {
-                            stringResource(R.string.multirt_runtime_version_name, it)
-                        } ?: stringResource(R.string.multirt_runtime_corrupt),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = if (runtime.versionString != null) contentColor else MaterialTheme.colorScheme.error
+                    runtime.versionString?.let { version ->
+                        CmcTag(
+                            text = version,
+                            container = MaterialTheme.colorScheme.secondaryContainer,
+                            content = MaterialTheme.colorScheme.onSecondaryContainer
+                        )
+                    } ?: CmcTag(
+                        text = "已损坏",
+                        container = MaterialTheme.colorScheme.errorContainer,
+                        content = MaterialTheme.colorScheme.onErrorContainer
                     )
                     runtime.javaVersion.takeIf { it != 0 }?.let { javaVersion ->
-                        Text(
-                            text = stringResource(R.string.multirt_runtime_version_code, javaVersion),
-                            style = MaterialTheme.typography.bodySmall
+                        CmcTag(
+                            text = "Java $javaVersion",
+                            container = MaterialTheme.colorScheme.surfaceContainerHighest,
+                            content = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                     runtime.arch?.let { arch ->
                         val compatible = ZLApplication.DEVICE_ARCHITECTURE == Architecture.archAsInt(arch)
-                        Text(
-                            text = arch.takeIf {
-                                compatible
-                            }?.let {
-                                stringResource(R.string.multirt_runtime_version_arch, it)
-                            } ?: stringResource(R.string.multirt_runtime_incompatible_arch, arch),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = if (compatible) contentColor else MaterialTheme.colorScheme.error
+                        CmcTag(
+                            text = if (compatible) arch else "$arch 不兼容",
+                            container = if (compatible) MaterialTheme.colorScheme.surfaceContainerHighest
+                            else MaterialTheme.colorScheme.errorContainer,
+                            content = if (compatible) MaterialTheme.colorScheme.onSurfaceVariant
+                            else MaterialTheme.colorScheme.onErrorContainer
                         )
                     }
                 }
             }
             if (onDeleteClick != null) {
                 IconButton(
-                    //内置环境（未损坏）无法删除
                     enabled = !runtime.isProvidedByLauncher || !runtime.isCompatible(),
                     onClick = onDeleteClick
                 ) {
                     Icon(
-                        modifier = Modifier.padding(all = 8.dp),
                         painter = painterResource(R.drawable.ic_delete_filled),
                         contentDescription = stringResource(R.string.generic_delete)
                     )

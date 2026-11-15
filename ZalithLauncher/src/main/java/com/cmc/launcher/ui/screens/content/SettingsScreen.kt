@@ -47,7 +47,8 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.navigation3.runtime.entryProvider
-import top.yukonga.miuix.kmp.basic.TabRow
+import androidx.compose.material3.PrimaryTabRow
+import androidx.compose.material3.Tab
 import com.cmc.launcher.R
 import com.cmc.launcher.ui.base.BaseScreen
 import com.cmc.launcher.ui.components.AnimatedDirection
@@ -116,23 +117,34 @@ private fun TabMenu(
     navigateTo: (TitledNavKey) -> Unit
 ) {
     val ctx = rememberAnimatedContext(isVisible = isVisible)
-    val tabs = settingItems.map { stringResource(it.textRes) }
     val selected = settingItems.indexOfFirst { it.key == settingsScreenKey }.coerceAtLeast(0)
 
-    Row(
+    Column(
         modifier = modifier
             .fillMaxWidth()
             .animated(ctx, from = AnimatedDirection.Top)
-            .padding(horizontal = 12.dp, vertical = 8.dp),
-        horizontalArrangement = Arrangement.Center
     ) {
-        TabRow(
-            tabs = tabs,
+        PrimaryTabRow(
             selectedTabIndex = selected,
-            onTabSelected = { index ->
-                navigateTo(settingItems[index].key)
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            settingItems.forEachIndexed { index, item ->
+                Tab(
+                    selected = index == selected,
+                    onClick = { navigateTo(item.key) },
+                    text = {
+                        Text(
+                            text = stringResource(item.textRes),
+                            maxLines = 1,
+                            style = MaterialTheme.typography.labelLarge
+                        )
+                    },
+                    icon = {
+                        item.icon()
+                    }
+                )
             }
-        )
+        }
     }
 }
 

@@ -37,7 +37,9 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.cmc.launcher.ui.components.TitleAndSummary
-import top.yukonga.miuix.kmp.basic.Card as MiuixCard
+import androidx.compose.material3.Card as M3Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.foundation.layout.padding
 
 /**
  * 根据卡片在UI组中的位置，选择不同的圆角形状
@@ -170,11 +172,16 @@ fun SettingsCard(
     innerShape: Dp = 4.dp,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    MiuixCard(
+    M3Card(
         modifier = modifier,
-        cornerRadius = 22.dp
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainer
+        )
     ) {
-        content()
+        Column(modifier = Modifier.padding(vertical = 4.dp)) {
+            content()
+        }
     }
 }
 
@@ -188,12 +195,17 @@ fun SettingsCard(
     enabled: Boolean = true,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    MiuixCard(
+    M3Card(
         modifier = modifier,
-        cornerRadius = 22.dp,
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainer
+        ),
         onClick = onClick
     ) {
-        content()
+        Column(modifier = Modifier.padding(vertical = 4.dp)) {
+            content()
+        }
     }
 }
 
@@ -212,9 +224,12 @@ fun SettingsCard(
     trailingIcon: (@Composable RowScope.() -> Unit)? = null,
     enabled: Boolean = true
 ) {
-    MiuixCard(
+    M3Card(
         modifier = modifier,
-        cornerRadius = 22.dp,
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainer
+        ),
         onClick = onClick
     ) {
         Row(

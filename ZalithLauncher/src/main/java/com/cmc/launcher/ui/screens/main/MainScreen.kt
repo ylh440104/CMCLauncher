@@ -75,8 +75,6 @@ import androidx.compose.ui.unit.dp
 import androidx.constraintlayout.compose.ConstraintLayout
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation3.runtime.entryProvider
-import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.basic.IconButton as MiuixIconButton
 import com.cmc.launcher.BuildKeys
 import com.cmc.launcher.R
 import com.cmc.launcher.coroutine.TaskSystem
@@ -396,14 +394,14 @@ private fun <E: TitledNavKey> TopBar(
                         targetOffsetY = { -50 }
                     ) + fadeOut()
                 ) {
-                    MiuixIconButton(
+                    IconButton(
                         onClick = { changeExpandedState() }
                     ) {
                         Icon(
                             modifier = Modifier.size(22.dp),
                             painter = painterResource(R.drawable.ic_assignment_filled),
                             contentDescription = stringResource(R.string.main_task_menu),
-                            tint = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
@@ -460,7 +458,7 @@ private fun TopBarIconItem(
             .size(40.dp)
             .clip(CircleShape)
             .background(
-                if (selected) MiuixTheme.colorScheme.primary.copy(alpha = 0.16f)
+                if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.16f)
                 else Color.Transparent
             )
             .clickable(onClick = onClick),
@@ -474,15 +472,15 @@ private fun TopBarIconItem(
                 modifier = Modifier.size(iconSize),
                 painter = painter,
                 contentDescription = text,
-                tint = if (selected) MiuixTheme.colorScheme.primary
-                else MiuixTheme.colorScheme.onSurfaceVariantSummary
+                tint = if (selected) MaterialTheme.colorScheme.primary
+                else MaterialTheme.colorScheme.onSurfaceVariant
             )
             if (text != null) {
                 Text(
                     text = text,
                     style = MaterialTheme.typography.labelMedium,
-                    color = if (selected) MiuixTheme.colorScheme.primary
-                    else MiuixTheme.colorScheme.onSurfaceVariantSummary
+                    color = if (selected) MaterialTheme.colorScheme.primary
+                    else MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }

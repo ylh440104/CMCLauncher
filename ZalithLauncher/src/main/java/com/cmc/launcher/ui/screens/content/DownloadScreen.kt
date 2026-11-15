@@ -48,7 +48,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.navigation3.runtime.NavBackStack
 import androidx.navigation3.runtime.entryProvider
-import top.yukonga.miuix.kmp.basic.TabRow
+import androidx.compose.material3.ScrollableTabRow
+import androidx.compose.material3.Tab
 import com.cmc.launcher.R
 import com.cmc.launcher.game.download.addon.favorites.FavoriteProjectsRepository
 import com.cmc.launcher.game.download.addon.platform.Platform
@@ -178,23 +179,31 @@ private fun TabMenu(
     )
 
     val ctx = rememberAnimatedContext(isVisible = isVisible)
-    val tabs = downloadsList.map { stringResource(it.textRes) }
     val selected = downloadsList.indexOfFirst { it.key == backScreenViewModel.downloadScreen.currentKey }.coerceAtLeast(0)
 
-    Row(
+    ScrollableTabRow(
+        selectedTabIndex = selected,
         modifier = modifier
             .fillMaxWidth()
-            .animated(ctx, from = AnimatedDirection.Top)
-            .padding(horizontal = 12.dp, vertical = 8.dp),
-        horizontalArrangement = Arrangement.Center
+            .animated(ctx, from = AnimatedDirection.Top),
+        edgePadding = 8.dp
     ) {
-        TabRow(
-            tabs = tabs,
-            selectedTabIndex = selected,
-            onTabSelected = { index ->
-                backStack.navigateOnce(downloadsList[index].key)
-            }
-        )
+        downloadsList.forEachIndexed { index, item ->
+            Tab(
+                selected = index == selected,
+                onClick = { backStack.navigateOnce(item.key) },
+                text = {
+                    Text(
+                        text = stringResource(item.textRes),
+                        maxLines = 1,
+                        style = MaterialTheme.typography.labelLarge
+                    )
+                },
+                icon = {
+                    item.icon()
+                }
+            )
+        }
     }
 }
 
