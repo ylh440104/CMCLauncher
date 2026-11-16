@@ -32,6 +32,7 @@ import androidx.compose.ui.res.painterResource
 import com.cmc.launcher.R
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -311,7 +312,6 @@ private fun AccountManageContent(
     LocalLoginOperation(loginUiState.localOp, actions)
     OtherLoginOperation(loginUiState.otherOp, actions)
     ServerTypeOperation(operationUiState.serverOp, actions)
-}
 }
 
 /**
