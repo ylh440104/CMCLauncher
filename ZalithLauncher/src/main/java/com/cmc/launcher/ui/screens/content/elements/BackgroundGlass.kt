@@ -104,7 +104,11 @@ fun Modifier.liquidGlassHighlight(enabled: Boolean = true): Modifier =
 private class LiquidGlassElement : ModifierNodeElement<LiquidGlassNode>() {
     override fun create() = LiquidGlassNode()
     override fun update(node: LiquidGlassNode) {}
+    override fun equals(other: Any?): Boolean = other is LiquidGlassElement
+    override fun hashCode(): Int = LIQUID_GLASS_HASH
 }
+
+private const val LIQUID_GLASS_HASH = 0x4C47
 
 private class LiquidGlassNode : Modifier.Node(), DrawModifierNode {
     override fun ContentDrawScope.draw() {
