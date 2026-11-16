@@ -358,89 +358,86 @@ private fun VersionHeader(
     onRefreshClick: () -> Unit = {}
 ) {
     Column(modifier = modifier) {
-        BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            SimpleTextInputField(
+                modifier = Modifier.weight(1f),
+                value = versionFilter.id,
+                onValueChange = { onVersionFilterChange(versionFilter.copy(id = it)) },
+                color = itemContainerColor,
+                contentColor = itemContentColor,
+                singleLine = true,
+                hint = {
+                    Text(
+                        text = stringResource(R.string.generic_search),
+                        style = TextStyle(color = itemContentColor).copy(fontSize = 12.sp),
+                        maxLines = 1
+                    )
+                }
+            )
+
+            IconButton(
+                onClick = onRefreshClick
             ) {
-                val scrollState = rememberScrollState()
-                Row(
-                    modifier = Modifier
-                        .fadeEdge(
-                            state = scrollState,
-                            direction = EdgeDirection.Horizontal
-                        )
-                        .widthIn(max = this@BoxWithConstraints.maxWidth / 5 * 3) //3/5
-                        .horizontalScroll(scrollState),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    //版本筛选条件
-                    VersionTypeItem(
-                        selected = versionFilter.release,
-                        onClick = {
-                            onVersionFilterChange(versionFilter.copy(release = versionFilter.release.not()))
-                        },
-                        text = stringResource(R.string.download_game_type_release)
-                    )
-                    VersionTypeItem(
-                        selected = versionFilter.snapshot,
-                        onClick = {
-                            onVersionFilterChange(versionFilter.copy(snapshot = versionFilter.snapshot.not()))
-                        },
-                        text = stringResource(R.string.download_game_type_snapshot)
-                    )
-                    VersionTypeItem(
-                        selected = versionFilter.aprilFools,
-                        onClick = {
-                            onVersionFilterChange(versionFilter.copy(aprilFools = versionFilter.aprilFools.not()))
-                        },
-                        text = stringResource(R.string.download_game_type_april_fools)
-                    )
-                    VersionTypeItem(
-                        selected = versionFilter.old,
-                        onClick = {
-                            onVersionFilterChange(versionFilter.copy(old = versionFilter.old.not()))
-                        },
-                        text = stringResource(R.string.download_game_type_old)
-                    )
-                }
-
-                //搜索、刷新
-                Row(
-                    modifier = Modifier.weight(1f),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    SimpleTextInputField(
-                        modifier = Modifier.weight(1f),
-                        value = versionFilter.id,
-                        onValueChange = { onVersionFilterChange(versionFilter.copy(id = it)) },
-                        color = itemContainerColor,
-                        contentColor = itemContentColor,
-                        singleLine = true,
-                        hint = {
-                            Text(
-                                text = stringResource(R.string.generic_search),
-                                style = TextStyle(color = itemContentColor).copy(fontSize = 12.sp)
-                            )
-                        }
-                    )
-
-                    IconButton(
-                        onClick = onRefreshClick
-                    ) {
-                        Icon(
-                            painter = painterResource(R.drawable.ic_refresh),
-                            contentDescription = stringResource(R.string.generic_refresh)
-                        )
-                    }
-                }
+                Icon(
+                    painter = painterResource(R.drawable.ic_refresh),
+                    contentDescription = stringResource(R.string.generic_refresh)
+                )
             }
         }
 
+        val scrollState = rememberScrollState()
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .fadeEdge(
+                    state = scrollState,
+                    direction = EdgeDirection.Horizontal
+                )
+                .horizontalScroll(scrollState)
+                .padding(horizontal = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            VersionTypeItem(
+                selected = versionFilter.release,
+                onClick = {
+                    onVersionFilterChange(versionFilter.copy(release = versionFilter.release.not()))
+                },
+                text = stringResource(R.string.download_game_type_release)
+            )
+            VersionTypeItem(
+                selected = versionFilter.snapshot,
+                onClick = {
+                    onVersionFilterChange(versionFilter.copy(snapshot = versionFilter.snapshot.not()))
+                },
+                text = stringResource(R.string.download_game_type_snapshot)
+            )
+            VersionTypeItem(
+                selected = versionFilter.aprilFools,
+                onClick = {
+                    onVersionFilterChange(versionFilter.copy(aprilFools = versionFilter.aprilFools.not()))
+                },
+                text = stringResource(R.string.download_game_type_april_fools)
+            )
+            VersionTypeItem(
+                selected = versionFilter.old,
+                onClick = {
+                    onVersionFilterChange(versionFilter.copy(old = versionFilter.old.not()))
+                },
+                text = stringResource(R.string.download_game_type_old)
+            )
+        }
+
         HorizontalDivider(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 8.dp),
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
         )
     }

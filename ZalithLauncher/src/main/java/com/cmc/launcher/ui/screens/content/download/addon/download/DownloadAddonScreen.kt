@@ -36,6 +36,14 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.foundation.basicMarquee
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.material3.LinearWavyProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -335,6 +343,7 @@ private fun rememberDownloadAddonViewModel(
  * @param currentKey 当前的Key
  * @param installedChecker 查询版本本地是否已安装，null 则不进行已安装标注
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DownloadAddonScreen(
     mainScreenKey: TitledNavKey?,
@@ -358,14 +367,28 @@ fun DownloadAddonScreen(
         Triple(parentScreenKey, parentCurrentKey, false),
         Triple(key, currentKey, false),
     ) { isVisible ->
-        Row(
-            modifier = Modifier.fillMaxSize()
-        ) {
+        var showProjectSheet by remember { mutableStateOf(false) }
+        val projectSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+        Column(modifier = Modifier.fillMaxSize()) {
+            val headerCtx = rememberAnimatedContext(isVisible = isVisible)
+            ProjectHeader(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .animated(headerCtx),
+                projectResult = viewModel.projectResult,
+                classes = viewModel.classes,
+                platform = key.platform,
+                projectId = key.projectId,
+                onOpenDetail = { showProjectSheet = true },
+                onReload = { viewModel.getProject() }
+            )
+
             val versionCtx = rememberAnimatedContext(isVisible = isVisible)
             Versions(
                 modifier = Modifier
-                    .weight(versionsUIWeight)
-                    .fillMaxHeight()
+                    .fillMaxWidth()
+                    .weight(1f)
                     .animated(versionCtx),
                 viewModel = viewModel,
                 installedChecker = installedChecker,
@@ -387,24 +410,174 @@ fun DownloadAddonScreen(
                     onItemClicked(viewModel.classes, version, key.iconUrl, deps)
                 },
             )
+        }
 
-            val projectCtx = rememberAnimatedContext(isVisible = isVisible)
-            ProjectInfo(
-                modifier = Modifier
-                    .weight(projectUIWeight)
-                    .fillMaxHeight()
-                    .padding(vertical = 12.dp)
-                    .padding(end = 12.dp)
-                    .animated(projectCtx, from = AnimatedDirection.Right),
-                projectResult = viewModel.projectResult,
-                platform = key.platform,
-                projectId = key.projectId,
-                classes = viewModel.classes,
-                onReload = { viewModel.getProject() },
-                openLink = { url ->
-                    eventViewModel.sendEvent(EventViewModel.Event.OpenLink(url))
+        if (showProjectSheet) {
+            ModalBottomSheet(
+                onDismissRequest = { showProjectSheet = false },
+                sheetState = projectSheetState,
+                shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
+            ) {
+                ProjectInfo(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .fillMaxHeight(0.92f),
+                    projectResult = viewModel.projectResult,
+                    platform = key.platform,
+                    projectId = key.projectId,
+                    classes = viewModel.classes,
+                    onReload = { viewModel.getProject() },
+                    openLink = { url ->
+                        eventViewModel.sendEvent(EventViewModel.Event.OpenLink(url))
+                    }
+                )
+            }
+        }
+    }
+}
+
+/**
+ * 竖屏顶部的项目概览：图标、标题、简介、类型与收藏、相关链接入口
+ */
+@Composable
+private fun ProjectHeader(
+    modifier: Modifier = Modifier,
+    projectResult: DownloadAddonState<Pair<PlatformProject, AddonProjectInfo?>>,
+    platform: Platform,
+    projectId: String,
+    classes: PlatformClasses,
+    onOpenDetail: () -> Unit,
+    onReload: () -> Unit = {}
+) {
+    val context = LocalContext.current
+
+    BackgroundCard(
+        modifier = modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+        shape = MaterialTheme.shapes.extraLarge
+    ) {
+        when (projectResult) {
+            is DownloadAddonState.Getting -> {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(all = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    ShimmerBox(
+                        modifier = Modifier
+                            .clip(shape = RoundedCornerShape(10.dp))
+                            .size(56.dp)
+                    )
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        ShimmerBox(
+                            modifier = Modifier
+                                .fillMaxWidth(0.6f)
+                                .height(18.dp)
+                                .clip(RoundedCornerShape(4.dp))
+                        )
+                        ShimmerBox(
+                            modifier = Modifier
+                                .fillMaxWidth(0.9f)
+                                .height(14.dp)
+                                .clip(RoundedCornerShape(4.dp))
+                        )
+                    }
                 }
-            )
+            }
+            is DownloadAddonState.Success -> {
+                val (project, mcmod) = projectResult.result
+                val iconUrl = remember { project.platformIconUrl() }
+                val title = remember { project.platformTitle() }
+                val summary = remember { project.platformSummary() }
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(all = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    AddonIcon(
+                        modifier = Modifier.clip(shape = RoundedCornerShape(12.dp)),
+                        size = 56.dp,
+                        iconUrl = iconUrl
+                    )
+
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text(
+                            modifier = Modifier.basicMarquee(iterations = Int.MAX_VALUE),
+                            text = mcmod.getMcmodTitle(title, context),
+                            style = MaterialTheme.typography.titleMedium,
+                            maxLines = 1
+                        )
+                        Text(
+                            text = summary,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            ClassesIdentifier(
+                                classes = classes,
+                                iconSize = 14.dp,
+                                textStyle = MaterialTheme.typography.labelSmall
+                            )
+                            val isFavorite = FavoriteProjectsRepository.isFavorite(platform, projectId)
+                            FavoriteIdentifier(
+                                isFavorite = isFavorite,
+                                iconSize = 14.dp,
+                                textStyle = MaterialTheme.typography.labelSmall,
+                                onClick = {
+                                    if (isFavorite) {
+                                        FavoriteProjectsRepository.unfavorite(platform, projectId)
+                                    } else {
+                                        FavoriteProjectsRepository.favorite(project, classes)
+                                    }
+                                }
+                            )
+                        }
+                    }
+
+                    IconButton(onClick = onOpenDetail) {
+                        Icon(
+                            modifier = Modifier.size(22.dp),
+                            painter = painterResource(R.drawable.ic_arrow_right_rounded),
+                            contentDescription = "查看详情"
+                        )
+                    }
+                }
+            }
+            is DownloadAddonState.Error -> {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(all = 16.dp)
+                ) {
+                    ScalingLabel(
+                        modifier = Modifier.align(Alignment.Center),
+                        text = {
+                            AndroidStringText(
+                                text = androidText(
+                                    R.string.download_addon_failed_to_get_project,
+                                    projectResult.message
+                                )
+                            )
+                        },
+                        onClick = onReload
+                    )
+                }
+            }
         }
     }
 }
