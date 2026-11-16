@@ -26,173 +26,96 @@ import kotlin.math.abs
 import kotlin.math.cbrt
 import kotlin.math.cos
 import kotlin.math.exp
-import kotlin.math.ln
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.sin
 import kotlin.math.sqrt
 import kotlin.random.Random
 
-private const val GRAVITY = 9.8f
-private const val SURFACE_TENSION = 0.0728f
-private const val WATER_DENSITY = 998.0f
-private const val AIR_DENSITY = 1.204f
-private const val WATER_VISCOSITY = 1.002e-3f
-private const val SLIP_LENGTH = 10e-9f
+private const val GRAVITY = 9810f
+private const val SURFACE_TENSION = 72.8f
+private const val WATER_DENSITY = 0.001f
+private const val WATER_VISCOSITY = 0.01002f
 private const val PX_PER_MM = 6.0f
 
-private const val TILT_ANGLE_RAD = 1.05f
-private const val WIND_SPEED = 1.1f
-private const val WIND_TAU = 0.35f
+private const val TILT_SIN = 0.88f
+private const val WIND_BASE = 0.9f
 
-private const val THETA_EQUIL_DEG = 42f
-private const val THETA_ADV_DEG = 58f
-private const val THETA_REC_DEG = 28f
-private const val DEFECT_SCATTER = 0.3f
+private const val THETA_E_RAD = 0.733f
+private const val COS_THETA_A = 0.530f
+private const val COS_THETA_R = 0.883f
 
-private const val SPLASH_THRESHOLD_K = 6500f
-private const val TRAIL_FADE = 0.022f
+private const val TRAIL_FADE = 0.035f
 
-private val COS_THETA_E = cos(Math.toRadians(THETA_EQUIL_DEG.toDouble())).toFloat()
-private val COS_THETA_A = cos(Math.toRadians(THETA_ADV_DEG.toDouble())).toFloat()
-private val COS_THETA_R = cos(Math.toRadians(THETA_REC_DEG.toDouble())).toFloat()
-
-private class FallingDrop(
-    var x: Float = 0f,
-    var y: Float = 0f,
-    var diameterMm: Float = 0f,
-    var velocity: Float = 0f,
-    var lifetime: Float = 0f,
-    var landY: Float = 0f
-) {
-    fun terminalVelocity(): Float = 9.65f - 10.3f * exp(-0.6f * diameterMm)
+private fun hash21(x: Float, y: Float): Float {
+    var h = x * 127.1f + y * 311.7f
+    h = sin(h) * 43758.5453f
+    return h - kotlin.math.floor(h)
 }
 
-private class SurfaceDrop(
-    var x: Float = 0f,
-    var y: Float = 0f,
-    var volumeMm3: Float = 0f,
-    var velocity: Float = 0f,
-    var pinned: Boolean = true,
-    var pinFactor: Float = 1f,
-    var wobblePhase: Float = 0f,
-    var age: Float = 0f,
-    var spreadProgress: Float = 0f,
-    var oscPhase: Float = 0f,
-    var oscAmp: Float = 0f,
-    var trailWidthMm: Float = 0f,
-    var lastTrailX: Float = 0f,
-    var lastTrailY: Float = 0f
-) {
-    fun radiusPx(): Float {
-        val theta = THETA_EQUIL_DEG * PI.toFloat() / 180f
-        val denom = 2f - 3f * cos(theta) + (cos(theta) * cos(theta) * cos(theta))
-        val rmm = cbrt(volumeMm3 * 3f / (PI.toFloat() * denom))
-        val contactR = rmm * sin(theta)
-        return contactR * PX_PER_MM
-    }
-
-    fun heightPx(): Float {
-        val theta = THETA_EQUIL_DEG * PI.toFloat() / 180f
-        val denom = 2f - 3f * cos(theta) + (cos(theta) * cos(theta) * cos(theta))
-        val rmm = cbrt(volumeMm3 * 3f / (PI.toFloat() * denom))
-        val hMm = rmm * (1f - cos(theta))
-        return hMm * PX_PER_MM
-    }
+private class GridDroplet {
+    var gridX = 0
+    var gridY = 0
+    var rnd = 0f
+    var x = 0f
+    var y = 0f
+    var rPx = 0f
+    var hPx = 0f
+    var volumeMm3 = 0f
+    var born = 0f
+    var sway = 0f
 }
 
-private class SplashParticle(
+private class SliderDrop(
+    var x: Float,
+    var y: Float,
+    var volumeMm3: Float,
+    var velocity: Float = 0f,
+    var swayPhase: Float = Random.nextFloat() * 6.28f,
+    var tailT: Float = 0f
+) {
+    var dead = false
+    var absorbed = false
+}
+
+private class TrailSeg(var x: Float, var y: Float, var wMm: Float, var wet: Float = 1f)
+
+private class TrailPath {
+    val segs = mutableListOf<TrailSeg>()
+}
+
+private class RainStreak(
+    var x: Float = 0f,
+    var y: Float = 0f,
+    var vyPx: Float = 0f,
+    var lenPx: Float = 0f,
+    var widthPx: Float = 0f,
+    var alpha: Float = 0f
+)
+
+private class SplashBit(
     var x: Float = 0f,
     var y: Float = 0f,
     var vx: Float = 0f,
     var vy: Float = 0f,
-    var diameterMm: Float = 0f,
-    var life: Float = 1f,
-    var gravityOn: Boolean = true
+    var r: Float = 0f,
+    var life: Float = 1f
 )
 
-private class TrailSeg(
-    var x: Float = 0f,
-    var y: Float = 0f,
-    var widthMm: Float = 0f,
-    var wet: Float = 1f
-)
-
-private class TrailPath {
-    val segs = mutableListOf<TrailSeg>()
-    var dropId: Int = -1
-}
-
-private class StainMark(
-    var x: Float = 0f,
-    var y: Float = 0f,
-    var rPx: Float = 0f,
-    var wet: Float = 1f
-)
-
-private fun impactWeberNumber(velocityMps: Float, diameterMm: Float): Float {
-    val d = diameterMm / 1000f
-    return WATER_DENSITY * velocityMps * velocityMps * d / SURFACE_TENSION
-}
-
-private fun impactReynoldsNumber(velocityMps: Float, diameterMm: Float): Float {
-    val d = diameterMm / 1000f
-    return WATER_DENSITY * velocityMps * d / WATER_VISCOSITY
-}
-
-private fun mundoSplashParameter(velocityMps: Float, diameterMm: Float): Float {
-    val we = impactWeberNumber(velocityMps, diameterMm)
-    val re = impactReynoldsNumber(velocityMps, diameterMm)
-    return we * sqrt(re)
-}
-
-private fun maxSpreadRatio(velocityMps: Float, diameterMm: Float): Float {
-    val we = impactWeberNumber(velocityMps, diameterMm)
-    val re = impactReynoldsNumber(velocityMps, diameterMm)
-    val num = we + 12f
-    val den = 3f * (1f - COS_THETA_E) + 4f * we / sqrt(re)
-    return sqrt(num / max(den, 0.1f))
-}
-
-private fun furmidgePinForceMn(volumeMm3: Float, defect: Float): Float {
-    val theta = THETA_EQUIL_DEG * PI.toFloat() / 180f
-    val denom = 2f - 3f * cos(theta) + (cos(theta) * cos(theta) * cos(theta))
+private fun sphereCapGeom(volumeMm3: Float): Pair<Float, Float> {
+    val denom = 2f - 3f * cos(THETA_E_RAD) + cos(THETA_E_RAD).pow3()
     val rmm = cbrt(volumeMm3 * 3f / (PI.toFloat() * denom))
-    val contactRMm = rmm * sin(theta)
-    val widthM = contactRMm * 2f / 1000f
-    val base = PI.toFloat() * widthM * SURFACE_TENSION * abs(COS_THETA_R - COS_THETA_A)
-    return base * defect
+    return rmm * sin(THETA_E_RAD) to rmm * (1f - cos(THETA_E_RAD))
 }
 
-private fun voinovDynamicAngle(velocityMps: Float, contactRm: Float): Float {
-    val logTerm = ln(max(contactRm / SLIP_LENGTH, 1.1f))
-    val thetaE = THETA_EQUIL_DEG * PI.toFloat() / 180f
-    val cube = thetaE * thetaE * thetaE + 9f * WATER_VISCOSITY * velocityMps * logTerm / SURFACE_TENSION
-    return cbrt(max(cube, 1e-6f))
+private fun Float.pow3(): Float = this * this * this
+
+private fun furmidgePinMdyn(volumeMm3: Float): Float {
+    val (contactRMm, _) = sphereCapGeom(volumeMm3)
+    return PI.toFloat() * 2f * contactRMm * SURFACE_TENSION * abs(COS_THETA_R - COS_THETA_A) / 10000f
 }
 
-private fun huhScrivenDragNn(velocityMps: Float, contactRMm: Float): Float {
-    val contactRm = contactRMm / 1000f
-    val logTerm = ln(max(contactRm / SLIP_LENGTH, 1.1f))
-    return 3.6f * WATER_VISCOSITY * velocityMps * contactRm * logTerm
-}
-
-private fun landauLevichFilmMm(contactRMm: Float, velocityMps: Float): Float {
-    val ca = WATER_VISCOSITY * velocityMps / SURFACE_TENSION
-    if (ca < 1e-7f) return 0.001f
-    return 0.945f * contactRMm * ca.powF(2f / 3f)
-}
-
-private fun Float.powF(e: Float): Float = Math.pow(this.toDouble(), e.toDouble()).toFloat()
-
-private fun windShearStress(): Float {
-    return 0.5f * AIR_DENSITY * 0.005f * WIND_SPEED * WIND_SPEED
-}
-
-private fun evaporationRate(volumeMm3: Float): Float {
-    val rmm = cbrt(volumeMm3 * 3f / (4f * PI.toFloat()))
-    return 0.00045f * rmm
-}
+private fun dropMassG(volumeMm3: Float): Float = volumeMm3 * WATER_DENSITY
 
 @Composable
 fun RainGlassEffect(
@@ -203,18 +126,17 @@ fun RainGlassEffect(
     var canvasSize by remember { mutableStateOf(IntSize.Zero) }
     var inited by remember { mutableStateOf(false) }
 
-    val falling = remember { mutableStateListOf<FallingDrop>() }
-    val drops = remember { mutableStateListOf<SurfaceDrop>() }
-    val splashes = remember { mutableStateListOf<SplashParticle>() }
+    val gridDrops = remember { mutableStateListOf<GridDroplet>() }
+    val sliders = remember { mutableStateListOf<SliderDrop>() }
     val trails = remember { mutableStateListOf<TrailPath>() }
-    val stains = remember { mutableStateListOf<StainMark>() }
-    var nextDropId by remember { mutableFloatStateOf(0f) }
+    val streaks = remember { mutableStateListOf<RainStreak>() }
+    val splashes = remember { mutableStateListOf<SplashBit>() }
+    var spawnAccum by remember { mutableFloatStateOf(0f) }
+    var sliderAccum by remember { mutableFloatStateOf(0f) }
 
     LaunchedEffect(enabled) {
         if (!enabled) return@LaunchedEffect
         var last = System.nanoTime()
-        var spawnAccum = 0f
-        var windPhase = 0f
 
         while (true) {
             delay(16)
@@ -227,201 +149,121 @@ fun RainGlassEffect(
             last = now
             if (dt <= 0f) continue
 
-            val windNow = WIND_SPEED * (0.6f + 0.4f * sin(windPhase * 0.7f))
-            windPhase += dt
-            spawnAccum += dt * 26f
-            while (spawnAccum >= 1f) {
-                spawnAccum -= 1f
-                val dmm = 0.6f + 3.0f * (Random.nextFloat() * Random.nextFloat())
-                falling += FallingDrop(
-                    x = Random.nextFloat() * w,
-                    y = -20f - Random.nextFloat() * 40f,
-                    diameterMm = dmm,
-                    velocity = 3.5f,
-                    lifetime = 0f,
-                    landY = Random.nextFloat() * h
-                )
-            }
-
             if (!inited) {
-                repeat(14) {
-                    drops += SurfaceDrop(
-                        x = Random.nextFloat() * w,
-                        y = Random.nextFloat() * h,
-                        volumeMm3 = (0.5f + Random.nextFloat() * 2.5f) * 4.19f,
-                        pinFactor = lerpF(1f - DEFECT_SCATTER, 1f + DEFECT_SCATTER, Random.nextFloat())
-                    ).also { it.wobblePhase = Random.nextFloat() * 6.28f }
+                val cell = 46f
+                val cols = (w / cell).toInt() + 1
+                val rows = (h / cell).toInt() + 1
+                for (cy in 0 until rows) {
+                    for (cx in 0 until cols) {
+                        val rnd = hash21(cx.toFloat() * 3.7f, cy.toFloat() * 7.3f)
+                        if (rnd < 0.55f) continue
+                        val vx = cx * cell + (hash21(cx.toFloat() * 11.1f, cy.toFloat() * 5.9f) - 0.5f) * cell * 0.7f
+                        val vy = cy * cell + (hash21(cx.toFloat() * 2.3f, cy.toFloat() * 13.7f) - 0.5f) * cell * 0.7f
+                        val vol = 1.2f + hash21(cx.toFloat() * 8.8f, cy.toFloat() * 4.4f) * 5.5f
+                        val (crMm, chMm) = sphereCapGeom(vol)
+                        gridDrops += GridDroplet().apply {
+                            gridX = cx; gridY = cy
+                            x = vx; y = vy
+                            rPx = crMm * PX_PER_MM; hPx = chMm * PX_PER_MM
+                            volumeMm3 = vol
+                            rnd = hash21(cx.toFloat() * 1.7f, cy.toFloat() * 9.1f)
+                            born = tick - rnd * 20f
+                            sway = rnd * 6.28f
+                        }
+                    }
                 }
                 inited = true
             }
 
-            val iterator = falling.listIterator()
+            spawnAccum += dt * 22f
+            while (spawnAccum >= 1f) {
+                spawnAccum -= 1f
+                val dmm = 0.8f + 2.6f * Random.nextFloat()
+                val vtMmps = 9650f - 10300f * exp(-0.6f * dmm)
+                streaks += RainStreak(
+                    x = Random.nextFloat() * w,
+                    y = -30f,
+                    vyPx = vtMmps * PX_PER_MM / 1000f,
+                    lenPx = (vtMmps * PX_PER_MM / 1000f) * 0.045f,
+                    widthPx = max(1.2f, dmm * PX_PER_MM * 0.28f),
+                    alpha = 0.18f + Random.nextFloat() * 0.22f
+                )
+            }
+
+            sliderAccum += dt * 1.6f
+            while (sliderAccum >= 1f) {
+                sliderAccum -= 1f
+                sliders += SliderDrop(
+                    x = Random.nextFloat() * w,
+                    y = Random.nextFloat() * h * 0.8f,
+                    volumeMm3 = 6f + Random.nextFloat() * 8f
+                )
+            }
+
+            val iterator = streaks.listIterator()
             while (iterator.hasNext()) {
-                val f = iterator.next()
-                f.lifetime += dt
-                val vt = f.terminalVelocity()
-                val drag = (GRAVITY / (vt * vt)) * f.velocity * f.velocity
-                f.velocity += (GRAVITY - drag) * dt
-                f.y += f.velocity * PX_PER_MM * dt
-                f.x += windNow * PX_PER_MM * 0.3f * dt
-
-                if (f.y > f.landY) {
-                    val vMps = f.velocity
-                    val kParam = mundoSplashParameter(vMps, f.diameterMm)
-                    if (kParam > SPLASH_THRESHOLD_K && splashes.size < 60) {
-                        val spread = maxSpreadRatio(vMps, f.diameterMm)
-                        val nBits = (2 + (kParam / 8000f).toInt()).coerceIn(2, 5)
-                        repeat(nBits) {
-                            splashes += SplashParticle(
-                                x = f.x, y = f.landY,
-                                vx = (Random.nextFloat() - 0.5f) * 4f * spread * PX_PER_MM,
-                                vy = -(1.5f + Random.nextFloat() * 2.5f) * spread * PX_PER_MM * 0.6f,
-                                diameterMm = f.diameterMm * (0.12f + Random.nextFloat() * 0.15f),
-                                life = 1f
-                            )
-                        }
-                        iterator.remove()
-                    } else {
-                        val newVol = (PI.toFloat() / 6f) * f.diameterMm * f.diameterMm * f.diameterMm
-                        if (drops.size < 30) {
-                            drops += SurfaceDrop(
-                                x = f.x,
-                                y = f.landY,
-                                volumeMm3 = newVol,
-                                pinFactor = lerpF(1f - DEFECT_SCATTER, 1f + DEFECT_SCATTER, Random.nextFloat())
-                            ).also {
-                                it.spreadProgress = 0f
-                                it.oscAmp = min(0.35f, spreadOf(vMps, f.diameterMm) * 0.08f)
-                                it.oscPhase = 0f
-                            }
-                        } else if (stains.size < 34) {
-                            stains += StainMark(
-                                x = f.x, y = f.landY,
-                                rPx = f.diameterMm * 0.5f * PX_PER_MM * 1.4f,
-                                wet = 0.9f
-                            )
-                        }
-                        iterator.remove()
-                    }
-                }
+                val s = iterator.next()
+                s.y += s.vyPx * dt
+                s.x += (WIND_BASE * PX_PER_MM * 0.35f) * dt * sin(tick * 0.8f + s.y * 0.01f)
+                if (s.y > h) iterator.remove()
             }
 
-            drops.forEach { d ->
-                d.age += dt
-                if (d.spreadProgress < 1f) {
-                    d.spreadProgress = min(1f, d.spreadProgress + dt * 5f)
+            sliders.forEach { d ->
+                if (d.dead) return@forEach
+                val massG = dropMassG(d.volumeMm3)
+                val driveMdyn = massG * GRAVITY * TILT_SIN / 981f
+                val pinMdyn = furmidgePinMdyn(d.volumeMm3)
+                val netMdyn = max(driveMdyn - pinMdyn, 0f)
+                val accelPx = netMdyn / max(massG, 1e-6f) * 981f * PX_PER_MM / 1000f
+                d.velocity += accelPx * dt
+                d.velocity = min(d.velocity, 260f + d.volumeMm3 * 6f)
+                d.y += d.velocity * dt
+                d.x += sin(tick * 1.6f + d.swayPhase) * 16f * dt
+                d.tailT += dt
+
+                val (contactRMm, _) = sphereCapGeom(d.volumeMm3)
+                val ca = WATER_VISCOSITY * (d.velocity / PX_PER_MM) / SURFACE_TENSION
+                val filmMm = 0.945f * contactRMm * max(ca, 1e-4f).powF(2f / 3f)
+                val lostVol = 2f * contactRMm * filmMm * (d.velocity * dt / PX_PER_MM)
+                d.volumeMm3 -= lostVol
+
+                val trail = trails.lastOrNull { it.segs.size < 120 && it.segs.isNotEmpty() && it.segs.last().let { seg -> abs(seg.x - d.x) < 4f && seg.y < d.y } }
+                if (trail == null) {
+                    if (trails.size > 10) trails.removeAt(0)
+                    trails += TrailPath()
                 }
-                if (d.oscAmp > 0.01f) {
-                    d.oscPhase += dt * 9f
-                    d.oscAmp *= (1f - dt * 1.2f)
-                }
+                trails.last().segs += TrailSeg(d.x, d.y, max(filmMm * PX_PER_MM * 8f, 3f))
 
-                d.volumeMm3 -= evaporationRate(d.volumeMm3) * dt
-                if (d.volumeMm3 < 0.06f) {
-                    if (Random.nextFloat() < 0.5f && stains.size < 34) {
-                        stains += StainMark(
-                            x = d.x, y = d.y,
-                            rPx = max(3f, d.radiusPx() * 1.3f),
-                            wet = 0.7f
-                        )
-                    }
-                    d.x = Random.nextFloat() * w
-                    d.y = -20f - Random.nextFloat() * 300f
-                    d.volumeMm3 = (0.5f + Random.nextFloat() * 2.5f) * 4.19f
-                    d.velocity = 0f
-                    d.pinned = true
-                    d.pinFactor = lerpF(1f - DEFECT_SCATTER, 1f + DEFECT_SCATTER, Random.nextFloat())
-                    d.age = 0f
-                    d.spreadProgress = 0f
-                    d.oscAmp = 0f
-                    d.trailWidthMm = 0f
-                }
-
-                val massKg = d.volumeMm3 * 1e-9f * WATER_DENSITY
-                val driveN = massKg * GRAVITY * sin(TILT_ANGLE_RAD)
-                val windN = windShearStress() * PI.toFloat() * (d.radiusPx() / PX_PER_MM / 1000f).let { it * it }
-                val totalDrive = driveN + windN * 0.5f
-                val pinN = furmidgePinForceMn(d.volumeMm3, d.pinFactor)
-
-                if (d.pinned) {
-                    if (totalDrive > pinN) {
-                        d.pinned = false
-                    }
-                }
-
-                if (!d.pinned) {
-                    val contactRMm = d.radiusPx() / PX_PER_MM
-                    val vMps = d.velocity / PX_PER_MM / 1000f
-                    val dragN = huhScrivenDragNn(vMps, contactRMm)
-                    val netN = totalDrive - pinN - dragN
-                    val accelMps2 = netN / max(massKg, 1e-10f)
-                    d.velocity += accelMps2 * PX_PER_MM / 1000f * dt
-                    if (d.velocity < 0f) d.velocity = 0f
-
-                    d.y += d.velocity * dt
-                    d.x += (windNow * 8f + sin(tick * 1.5f + d.wobblePhase) * 12f) * dt
-
-                    val filmMm = landauLevichFilmMm(contactRMm, d.velocity / PX_PER_MM / 1000f)
-                    d.trailWidthMm = max(filmMm, 0.15f)
-                    val lostVol = 2f * contactRMm * filmMm * (d.velocity * dt / PX_PER_MM)
-                    d.volumeMm3 -= lostVol
-
-                    val trail = trails.lastOrNull { it.dropId == d.hashCode() }
-                    if (trail == null) {
-                        if (trails.size > 14) trails.removeAt(0)
-                        trails += TrailPath().also { it.dropId = d.hashCode() }
-                    }
-                    trails.last { it.dropId == d.hashCode() }.segs += TrailSeg().apply {
-                        x = d.x
-                        y = d.dropYTrail()
-                        widthMm = d.trailWidthMm
-                    }
-                }
+                if (d.volumeMm3 < 1.2f || d.y > h + 40f) d.dead = true
             }
+            sliders.removeAll { it.dead }
 
-            var i = 0
-            while (i < drops.size) {
-                var j = i + 1
-                while (j < drops.size) {
-                    val a = drops[i]
-                    val b = drops[j]
-                    val dx = a.x - b.x
-                    val dy = a.y - b.y
-                    val rr = (a.radiusPx() + b.radiusPx()) * 0.85f
-                    if (dx * dx + dy * dy < rr * rr) {
-                        val vol = a.volumeMm3 + b.volumeMm3
-                        a.x = (a.x * a.volumeMm3 + b.x * b.volumeMm3) / vol
-                        a.y = (a.y * a.volumeMm3 + b.y * b.volumeMm3) / vol
-                        a.volumeMm3 = vol
-                        a.pinned = true
-                        a.velocity = 0f
-                        a.oscAmp = 0.3f
-                        a.oscPhase = 0f
-                        drops.removeAt(j)
-                    } else {
-                        j++
+            gridDrops.removeAll { g ->
+                sliders.any { s ->
+                    !s.dead && abs(s.x - g.x) < g.rPx * 0.8f + s.volumeMm3.let { v -> sphereCapGeom(v).first * PX_PER_MM * 0.5f } && abs(s.y - g.y) < g.rPx * 0.8f + sphereCapGeom(s.volumeMm3).first * PX_PER_MM * 0.5f
+                }.also {
+                    if (it) {
+                        sliders.firstOrNull { s -> abs(s.x - g.x) < 60f && abs(s.y - g.y) < 90f }?.let { s ->
+                            s.volumeMm3 += g.volumeMm3
+                        }
                     }
                 }
-                i++
             }
 
             splashes.removeAll { p ->
-                p.life -= dt * 1.7f
-                p.vy += GRAVITY * PX_PER_MM * dt
+                p.life -= dt * 2.2f
+                p.vy += GRAVITY * PX_PER_MM / 1000f * 0.6f * dt
                 p.x += p.vx * dt
                 p.y += p.vy * dt
-                p.life <= 0f || p.y > canvasSize.height + 10f
-            }
-
-            stains.removeAll { s ->
-                s.wet -= TRAIL_FADE * 0.5f * dt
-                s.wet <= 0f
+                p.life <= 0f || p.y > h + 10f
             }
 
             trails.forEach { t ->
-                t.segs.removeAll { s ->
-                    s.wet -= TRAIL_FADE * dt
-                    s.wet <= 0f
+                val iter = t.segs.listIterator()
+                while (iter.hasNext()) {
+                    val seg = iter.next()
+                    seg.wet -= TRAIL_FADE * dt
+                    if (seg.wet <= 0f) iter.remove()
                 }
             }
             trails.removeAll { it.segs.isEmpty() }
@@ -432,64 +274,91 @@ fun RainGlassEffect(
 
     Canvas(modifier = modifier.onSizeChanged { canvasSize = it }) {
         if (!enabled || !inited) return@Canvas
-        drawAmbientSheen(tick)
-        drawStainMarks(stains)
+        drawSheen(tick)
         drawTrailPaths(trails)
-        drawFallingDrops(falling, tick)
-        drawSplashParticles(splashes)
-        drawSurfaceDropsFull(drops, tick)
+        drawStreaks(streaks)
+        drawGridDroplets(gridDrops, tick)
+        drawSliders(sliders)
+        drawSplashBits(splashes)
     }
 }
 
-private fun spreadOf(vMps: Float, dmm: Float): Float = maxSpreadRatio(vMps, dmm)
+private fun Float.powF(e: Float): Float = Math.pow(this.toDouble(), e.toDouble()).toFloat()
 
-private fun SurfaceDrop.dropYTrail(): Float = y + radiusPx() * 0.6f
-
-private fun lerpF(a: Float, b: Float, t: Float) = a + (b - a) * t
-
-private fun DrawScope.drawAmbientSheen(tick: Float) {
+private fun DrawScope.drawSheen(tick: Float) {
     val w = size.width
     val h = size.height
-    val shift = sin(tick * 0.3f) * w * 0.15f
+    val shift = sin(tick * 0.25f) * w * 0.12f
     drawRect(
         brush = Brush.linearGradient(
             colors = listOf(
-                Color.White.copy(alpha = 0.09f),
+                Color.White.copy(alpha = 0.05f),
                 Color.Transparent,
-                Color(0xFFBFE3FF).copy(alpha = 0.06f),
+                Color(0xFFBFE3FF).copy(alpha = 0.04f),
                 Color.Transparent
             ),
             start = Offset(shift, 0f),
             end = Offset(w + shift, h)
         )
     )
-    drawRect(
-        brush = Brush.verticalGradient(
-            colors = listOf(
-                Color.White.copy(alpha = 0.11f),
-                Color.Transparent
-            ),
-            startY = 0f,
-            endY = h * (0.26f + 0.05f * sin(tick * 0.4f))
-        )
-    )
 }
 
-private fun DrawScope.drawStainMarks(stains: List<StainMark>) {
-    stains.forEach { s ->
-        val alpha = s.wet * 0.35f
-        drawCircle(
-            brush = Brush.radialGradient(
+private fun DrawScope.drawStreaks(streaks: List<RainStreak>) {
+    streaks.forEach { s ->
+        drawLine(
+            brush = Brush.linearGradient(
                 colors = listOf(
-                    Color(0xFFE8F4FF).copy(alpha = alpha),
-                    Color(0xFFC3DCF2).copy(alpha = alpha * 0.4f),
-                    Color.Transparent
+                    Color.Transparent,
+                    Color.White.copy(alpha = s.alpha * 0.5f),
+                    Color.White.copy(alpha = s.alpha)
                 ),
-                center = Offset(s.x, s.y),
-                radius = s.rPx
+                start = Offset(s.x, s.y - s.lenPx),
+                end = Offset(s.x, s.y)
             ),
-            radius = s.rPx,
-            center = Offset(s.x, s.y)
+            start = Offset(s.x, s.y - s.lenPx),
+            end = Offset(s.x, s.y),
+            strokeWidth = s.widthPx,
+            cap = StrokeCap.Round
+        )
+    }
+}
+
+private fun DrawScope.drawGridDroplets(grid: List<GridDroplet>, tick: Float) {
+    grid.forEach { g ->
+        val pulse = 1f + sin(tick * 0.9f + g.sway) * 0.015f
+        drawSingleDrop(
+            cx = g.x,
+            cy = g.y,
+            rPx = g.rPx * pulse,
+            hPx = g.hPx * pulse,
+            stretch = 0f,
+            tailW = 0f,
+            velocity = 0f
+        )
+    }
+}
+
+private fun DrawScope.drawSliders(sliders: List<SliderDrop>) {
+    sliders.forEach { d ->
+        val (crMm, chMm) = sphereCapGeom(d.volumeMm3)
+        drawSingleDrop(
+            cx = d.x,
+            cy = d.y,
+            rPx = crMm * PX_PER_MM,
+            hPx = chMm * PX_PER_MM,
+            stretch = (d.velocity / 300f).coerceIn(0f, 1f),
+            tailW = max(3f, crMm * PX_PER_MM * 0.7f),
+            velocity = d.velocity
+        )
+    }
+}
+
+private fun DrawScope.drawSplashBits(splashes: List<SplashBit>) {
+    splashes.forEach { p ->
+        drawCircle(
+            color = Color.White.copy(alpha = 0.55f * p.life),
+            radius = p.r,
+            center = Offset(p.x, p.y)
         )
     }
 }
@@ -500,36 +369,35 @@ private fun DrawScope.drawTrailPaths(trails: List<TrailPath>) {
         while (i < t.segs.size - 1) {
             val a = t.segs[i]
             val b = t.segs[i + 1]
-            val alpha = (a.wet * 0.62f).coerceIn(0f, 1f)
-            if (alpha > 0.02f) {
-                val wPx = a.widthMm * PX_PER_MM
+            val alpha = (a.wet * 0.5f).coerceIn(0f, 0.75f)
+            if (alpha > 0.03f) {
                 drawLine(
                     brush = Brush.verticalGradient(
                         colors = listOf(
-                            Color(0xFFD7EAFF).copy(alpha = alpha * 0.45f),
-                            Color(0xFFEAF6FF).copy(alpha = alpha * 0.9f)
+                            Color(0xFFCBE4F8).copy(alpha = alpha * 0.5f),
+                            Color(0xFFE9F5FF).copy(alpha = alpha)
                         ),
                         startY = a.y,
                         endY = b.y
                     ),
                     start = Offset(a.x, a.y),
                     end = Offset(b.x, b.y),
-                    strokeWidth = max(1.5f, wPx),
+                    strokeWidth = a.wMm,
                     cap = StrokeCap.Round
                 )
-                if (wPx > 4f) {
+                if (a.wMm > 5f) {
                     drawLine(
-                        color = Color.White.copy(alpha = alpha * 0.5f),
-                        start = Offset(a.x - wPx * 0.25f, a.y),
-                        end = Offset(b.x - b.widthMm * PX_PER_MM * 0.25f, b.y),
-                        strokeWidth = max(0.8f, wPx * 0.14f),
+                        color = Color.White.copy(alpha = alpha * 0.55f),
+                        start = Offset(a.x - a.wMm * 0.26f, a.y),
+                        end = Offset(b.x - b.wMm * 0.26f, b.y),
+                        strokeWidth = max(0.8f, a.wMm * 0.13f),
                         cap = StrokeCap.Round
                     )
                     drawLine(
-                        color = Color(0xFF86B0D6).copy(alpha = alpha * 0.3f),
-                        start = Offset(a.x + wPx * 0.28f, a.y),
-                        end = Offset(b.x + b.widthMm * PX_PER_MM * 0.28f, b.y),
-                        strokeWidth = max(0.8f, wPx * 0.14f),
+                        color = Color(0xFF7FA8CC).copy(alpha = alpha * 0.30f),
+                        start = Offset(a.x + a.wMm * 0.28f, a.y),
+                        end = Offset(b.x + b.wMm * 0.28f, b.y),
+                        strokeWidth = max(0.8f, a.wMm * 0.13f),
                         cap = StrokeCap.Round
                     )
                 }
@@ -539,210 +407,109 @@ private fun DrawScope.drawTrailPaths(trails: List<TrailPath>) {
     }
 }
 
-private fun DrawScope.drawFallingDrops(falling: List<FallingDrop>, tick: Float) {
-    falling.forEach { f ->
-        val len = f.velocity * PX_PER_MM * 0.035f
-        drawLine(
-            brush = Brush.linearGradient(
+private fun DrawScope.drawSingleDrop(
+    cx: Float,
+    cy: Float,
+    rPx: Float,
+    hPx: Float,
+    stretch: Float,
+    tailW: Float,
+    velocity: Float
+) {
+    val rw = max(rPx, 1.2f)
+    val hh = max(hPx, 0.8f)
+    val dome = Path().apply {
+        moveTo(cx - rw, cy)
+        cubicTo(cx - rw * 1.06f, cy - hh * 0.5f, cx - rw * 0.62f, cy - hh, cx, cy - hh)
+        cubicTo(cx + rw * 0.62f, cy - hh, cx + rw * 1.06f, cy - hh * 0.5f, cx + rw, cy)
+        close()
+    }
+
+    if (tailW > 0f && stretch > 0.02f) {
+        val tailLen = 30f + 110f * stretch
+        val tw = tailW
+        drawPath(
+            path = Path().apply {
+                moveTo(cx - tw * 0.5f, cy - tailLen)
+                cubicTo(cx - tw * 0.5f, cy - tailLen * 0.3f, cx - rw * 0.8f, cy - hh * 1.3f, cx - rw * 0.9f, cy - hh * 0.2f)
+                lineTo(cx + rw * 0.9f, cy - hh * 0.2f)
+                cubicTo(cx + tw * 0.5f, cy - tailLen * 0.3f, cx + tw * 0.5f, cy - tailLen * 0.3f, cx + tw * 0.5f, cy - tailLen)
+                close()
+            },
+            brush = Brush.verticalGradient(
                 colors = listOf(
                     Color.Transparent,
-                    Color.White.copy(alpha = 0.25f),
-                    Color.White.copy(alpha = 0.5f)
+                    Color(0xFFC6E2F8).copy(alpha = 0.30f),
+                    Color(0xFFE4F2FF).copy(alpha = 0.50f)
                 ),
-                start = Offset(f.x, f.y - len),
-                end = Offset(f.x, f.y)
+                startY = cy - tailLen,
+                endY = cy
+            )
+        )
+    }
+
+    drawPath(
+        path = dome,
+        color = Color.Black.copy(alpha = 0.07f)
+    )
+
+    drawPath(
+        path = dome,
+        brush = Brush.radialGradient(
+            colors = listOf(
+                Color.White.copy(alpha = 0.88f),
+                Color(0xFFDDF0FF).copy(alpha = 0.50f),
+                Color(0xFFA5C9EC).copy(alpha = 0.32f),
+                Color(0xFFEAF6FF).copy(alpha = 0.70f)
             ),
-            start = Offset(f.x, f.y - len),
-            end = Offset(f.x, f.y),
-            strokeWidth = max(1.0f, f.diameterMm * PX_PER_MM * 0.4f),
-            cap = StrokeCap.Round
+            center = Offset(cx - rw * 0.18f, cy - hh * 0.55f),
+            radius = rw * 2.2f
         )
-    }
-}
+    )
 
-private fun DrawScope.drawSplashParticles(splashes: List<SplashParticle>) {
-    splashes.forEach { p ->
-        val rPx = p.diameterMm * 0.5f * PX_PER_MM
-        drawCircle(
-            color = Color.White.copy(alpha = 0.6f * p.life),
-            radius = rPx,
-            center = Offset(p.x, p.y)
-        )
-    }
-}
+    drawCircle(
+        color = Color.White.copy(alpha = 0.92f),
+        radius = max(0.8f, rw * 0.16f),
+        center = Offset(cx - rw * 0.34f, cy - hh * 0.58f)
+    )
 
-private const val WATER_REFRACTIVE_INDEX = 1.333f
-private const val FRESNEL_R0 = 0.0204f
-private const val LIGHT_DIR_X = -0.62f
-private const val LIGHT_DIR_Y = -0.78f
+    drawCircle(
+        color = Color.White.copy(alpha = 0.30f),
+        radius = max(0.5f, rw * 0.08f),
+        center = Offset(cx + rw * 0.30f, cy - hh * 0.7f)
+    )
 
-private fun fresnelReflectance(cosTheta: Float): Float {
-    val c = cosTheta.coerceIn(0f, 1f)
-    return FRESNEL_R0 + (1f - FRESNEL_R0) * (1f - c).powF(5f)
-}
-
-private fun causticGain(contactRMm: Float): Float {
-    val fMm = WATER_REFRACTIVE_INDEX * contactRMm / (2f * (WATER_REFRACTIVE_INDEX - 1f))
-    return (contactRMm / fMm).coerceIn(0f, 1f)
-}
-
-private fun DrawScope.drawSurfaceDropsFull(drops: List<SurfaceDrop>, tick: Float) {
-    drops.forEach { d ->
-        val rBase = d.radiusPx()
-        val hPx = d.heightPx()
-        val spread = d.spreadProgress * (1f + d.oscAmp * sin(d.oscPhase))
-        val rw = rBase * spread.coerceIn(0.55f, 1.6f)
-        val stretch = if (d.pinned) 0f else (d.velocity / (PX_PER_MM * 60f)).coerceIn(0f, 1.1f)
-        val dome = dropDomePath(d.x, d.y, rw, hPx, stretch)
-
-        val thicknessRatio = (hPx / max(rw, 1f)).coerceIn(0.15f, 1.2f)
-        val edgeCos = (1f - thicknessRatio).coerceIn(0f, 1f)
-        val rimReflect = fresnelReflectance(edgeCos)
-        val caustic = causticGain(rw / PX_PER_MM)
-
-        if (!d.pinned && d.trailWidthMm > 0.001f) {
-            val tailLen = 24f + 90f * stretch
-            drawPath(
-                path = Path().apply {
-                    moveTo(d.x - d.trailWidthMm * PX_PER_MM * 0.5f, d.y - tailLen)
-                    cubicTo(
-                        d.x - rw * 0.9f, d.y - hPx * 1.2f,
-                        d.x - rw, d.y - hPx * 0.5f,
-                        d.x - rw, d.y
-                    )
-                    lineTo(d.x + rw, d.y)
-                    cubicTo(
-                        d.x + rw, d.y - hPx * 0.5f,
-                        d.x + rw * 0.9f, d.y - hPx * 1.2f,
-                        d.x + d.trailWidthMm * PX_PER_MM * 0.5f, d.y - tailLen
-                    )
-                    close()
-                },
-                brush = Brush.verticalGradient(
-                    colors = listOf(
-                        Color.Transparent,
-                        Color(0xFFCFE7FF).copy(alpha = 0.30f + rimReflect * 0.3f),
-                        Color.White.copy(alpha = 0.45f + rimReflect * 0.4f)
-                    ),
-                    startY = d.y - tailLen,
-                    endY = d.y
-                )
-            )
-        }
-
-        drawCircle(
-            color = Color.Black.copy(alpha = 0.10f + thicknessRatio * 0.06f),
-            radius = rw * (1.08f + thicknessRatio * 0.10f),
-            center = Offset(d.x - LIGHT_DIR_X * rw * 0.14f, d.y + hPx * 0.10f)
-        )
-
-        drawPath(
-            path = dome,
-            brush = Brush.radialGradient(
-                colors = listOf(
-                    Color(0xFFEBF7FF).copy(alpha = 0.14f + thicknessRatio * 0.10f),
-                    Color(0xFFD6EBFF).copy(alpha = 0.34f),
-                    Color(0xFF9FC4E8).copy(alpha = 0.40f + thicknessRatio * 0.12f),
-                    Color(0xFFE6F3FF).copy(alpha = 0.55f + rimReflect * 0.35f)
-                ),
-                center = Offset(d.x - rw * 0.10f, d.y - hPx * 0.55f),
-                radius = rw * 2.3f
-            )
-        )
-
-        drawCircle(
-            brush = Brush.radialGradient(
-                colors = listOf(
-                    Color(0xFFCCEDFF).copy(alpha = 0.55f * caustic + 0.15f),
-                    Color(0xFFA8D4F0).copy(alpha = 0.30f * caustic),
-                    Color.Transparent
-                ),
-                center = Offset(d.x + rw * 0.12f, d.y - hPx * 0.28f),
-                radius = rw * 0.42f
+    drawPath(
+        path = dome,
+        brush = Brush.linearGradient(
+            colors = listOf(
+                Color.White.copy(alpha = 0.0f),
+                Color.White.copy(alpha = 0.0f),
+                Color(0xFF6E96B8).copy(alpha = 0.18f)
             ),
-            radius = rw * 0.42f,
-            center = Offset(d.x + rw * 0.12f, d.y - hPx * 0.28f)
+            start = Offset(cx, cy - hh),
+            end = Offset(cx, cy)
         )
+    )
 
-        drawCircle(
-            color = Color.White.copy(alpha = 0.80f + rimReflect * 0.15f),
-            radius = max(1.0f, rw * 0.16f * (1f - stretch * 0.3f)),
-            center = Offset(
-                d.x + LIGHT_DIR_X * rw * 0.38f,
-                d.y - hPx * (0.62f + stretch * 0.20f)
-            )
-        )
+    drawOvalSoft(cx, cy + hh * 0.05f, rw * 0.9f, rw * 0.32f, 0.28f)
 
-        drawCircle(
-            color = Color.White.copy(alpha = 0.35f),
-            radius = max(0.7f, rw * 0.09f),
-            center = Offset(d.x + rw * 0.30f, d.y - hPx * 0.75f)
-        )
-
-        drawPath(
-            path = dropDomePath(d.x, d.y, rw, hPx, stretch),
-            brush = Brush.linearGradient(
-                colors = listOf(
-                    Color.Transparent,
-                    Color.Transparent,
-                    Color(0xFF5E88A8).copy(alpha = 0.22f * thicknessRatio)
-                ),
-                start = Offset(d.x, d.y - hPx),
-                end = Offset(d.x, d.y)
-            )
-        )
-
-        drawPath(
-            path = Path().apply {
-                moveTo(d.x - rw, d.y)
-                cubicTo(
-                    d.x - rw * 1.02f, d.y - hPx * 0.5f,
-                    d.x - rw * 0.8f, d.y - hPx * 0.85f,
-                    d.x - rw * 0.45f, d.y - hPx * 1.05f
-                )
-            },
-            color = Color.White.copy(alpha = 0.30f + rimReflect * 0.45f),
-            style = Stroke(width = max(0.9f, rw * 0.07f))
-        )
-
-        drawPath(
-            path = Path().apply {
-                moveTo(d.x + rw * 0.55f, d.y - hPx * 0.85f)
-                cubicTo(
-                    d.x + rw * 0.92f, d.y - hPx * 0.55f,
-                    d.x + rw * 1.02f, d.y - hPx * 0.25f,
-                    d.x + rw, d.y
-                )
-            },
-            color = Color.White.copy(alpha = 0.20f + rimReflect * 0.35f),
-            style = Stroke(width = max(0.7f, rw * 0.05f))
-        )
-
-        drawOvalSoft(d.x, d.y + hPx * 0.06f, rw * 0.85f * caustic + 2f, rw * 0.3f, (0.30f + caustic * 0.30f).coerceAtMost(0.65f))
-
-        drawPath(
-            path = Path().apply {
-                moveTo(d.x - rw * 0.12f, d.y - hPx * 0.80f)
-                cubicTo(
-                    d.x - rw * 0.42f, d.y - hPx * 0.45f,
-                    d.x - rw * 0.28f, d.y - hPx * 0.18f,
-                    d.x - rw * 0.10f, d.y - hPx * 0.06f
-                )
-            },
-            color = Color.White.copy(alpha = 0.32f * (1f - caustic * 0.4f)),
-            style = Stroke(width = max(0.6f, rw * 0.05f))
-        )
-
-        if (d.pinned && d.age < 0.25f) {
-            val ring = 1f - d.age / 0.25f
-            drawCircle(
-                color = Color.White.copy(alpha = ring * 0.28f),
-                radius = rw * (1.5f + (1f - ring) * 1.4f),
-                center = Offset(d.x, d.y),
-                style = Stroke(width = 1.5f)
-            )
-        }
-    }
+    drawPath(
+        path = Path().apply {
+            moveTo(cx - rw, cy)
+            cubicTo(cx - rw * 1.0f, cy - hh * 0.4f, cx - rw * 0.8f, cy - hh * 0.8f, cx - rw * 0.4f, cy - hh * 1.0f)
+        },
+        color = Color.White.copy(alpha = 0.35f),
+        style = Stroke(width = max(0.7f, rw * 0.06f))
+    )
+    drawPath(
+        path = Path().apply {
+            moveTo(cx + rw * 0.4f, cy - hh * 0.95f)
+            cubicTo(cx + rw * 0.85f, cy - hh * 0.6f, cx + rw, cy - hh * 0.3f, cx + rw, cy)
+        },
+        color = Color.White.copy(alpha = 0.22f),
+        style = Stroke(width = max(0.6f, rw * 0.05f))
+    )
 }
 
 private fun DrawScope.drawOvalSoft(cx: Float, cy: Float, rx: Float, ry: Float, alpha: Float) {
@@ -759,13 +526,4 @@ private fun DrawScope.drawOvalSoft(cx: Float, cy: Float, rx: Float, ry: Float, a
         radius = max(rx, ry),
         center = Offset(cx, cy)
     )
-}
-
-private fun dropDomePath(x: Float, y: Float, rPx: Float, hPx: Float, stretch: Float): Path = Path().apply {
-    val h = hPx * (1f + stretch * 0.4f)
-    val r = rPx * (1f - stretch * 0.15f)
-    moveTo(x - r, y)
-    cubicTo(x - r * 1.05f, y - h * 0.55f, x - r * 0.55f, y - h * 0.9f, x, y - h)
-    cubicTo(x + r * 0.55f, y - h * 0.9f, x + r * 1.05f, y - h * 0.55f, x + r, y)
-    close()
 }
