@@ -62,6 +62,7 @@ import com.cmc.launcher.ui.screens.TitledNavKey
 import com.cmc.launcher.ui.screens.content.elements.CategoryIcon
 import com.cmc.launcher.ui.screens.content.elements.CategoryItem
 import com.cmc.launcher.ui.screens.content.settings.JavaManageScreen
+import com.cmc.launcher.ui.screens.content.settings.MirrorSettingScreen
 import com.cmc.launcher.ui.screens.navigateOnce
 import com.cmc.launcher.ui.screens.onBack
 import com.cmc.launcher.ui.screens.rememberTransitionSpec
@@ -106,7 +107,8 @@ fun SettingsScreen(
 }
 
 private val settingItems = listOf(
-    CategoryItem(NormalNavKey.Settings.JavaManager, { CategoryIcon(R.drawable.ic_java, R.string.settings_tab_java_manage) }, R.string.settings_tab_java_manage)
+    CategoryItem(NormalNavKey.Settings.JavaManager, { CategoryIcon(R.drawable.ic_java, R.string.settings_tab_java_manage) }, R.string.settings_tab_java_manage),
+    CategoryItem(NormalNavKey.Settings.Mirror, { CategoryIcon(R.drawable.ic_public, R.string.generic_setting) }, R.string.generic_setting)
 )
 
 @Composable
@@ -177,6 +179,13 @@ private fun NavigationUI(
             entryProvider = entryProvider {
                 entry<NormalNavKey.Settings.JavaManager> {
                     JavaManageScreen(key, settingsScreenKey, mainScreenKey, eventViewModel, submitError)
+                }
+                entry<NormalNavKey.Settings.Mirror> {
+                    MirrorSettingScreen(
+                        key = key,
+                        settingsScreenKey = settingsScreenKey,
+                        mainScreenKey = mainScreenKey
+                    )
                 }
             }
         )
