@@ -48,6 +48,7 @@ import androidx.compose.ui.node.invalidateDraw
 import androidx.compose.ui.platform.LocalGraphicsContext
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.lerp
 import androidx.core.graphics.withSave
 import com.cmc.launcher.setting.AllSettings
@@ -93,6 +94,92 @@ internal fun Modifier.backgroundCapture(
     blurRadiusPx: Float,
     whiteOverlayAlpha: Float,
 ): Modifier = this then BackgroundCaptureElement(store, recordContent, blurRadiusPx, whiteOverlayAlpha)
+
+/**
+ * 液态玻璃高光层：不依赖模糊强度与背景图，独立绘制在内容之上
+ */
+fun Modifier.liquidGlassHighlight(enabled: Boolean = true): Modifier =
+    if (!enabled) this else this then LiquidGlassElement()
+
+private data class LiquidGlassElement : ModifierNodeElement<LiquidGlassNode>() {
+    override fun create() = LiquidGlassNode()
+    override fun update(node: LiquidGlassNode) {}
+}
+
+private class LiquidGlassNode : Modifier.Node(), DrawModifierNode {
+    override fun ContentDrawScope.draw() {
+        if (!AllSettings.liquidGlass.state) {
+            drawContent()
+            return
+        }
+        val w = size.width
+        val h = size.height
+        if (w <= 0f || h <= 0f) {
+            drawContent()
+            return
+        }
+        val corner = minOf(w, h) * 0.18f
+
+        drawRect(
+            brush = Brush.verticalGradient(
+                colors = listOf(
+                    Color.White.copy(alpha = 0.24f),
+                    Color.White.copy(alpha = 0.05f),
+                    Color.Transparent
+                ),
+                startY = 0f,
+                endY = h * 0.55f
+            ),
+            blendMode = BlendMode.SrcOver
+        )
+
+        drawRect(
+            brush = Brush.radialGradient(
+                colors = listOf(
+                    Color.White.copy(alpha = 0.20f),
+                    Color.Transparent
+                ),
+                center = Offset(w * 0.12f, h * 0.08f),
+                radius = maxOf(w, h) * 0.45f
+            ),
+            blendMode = BlendMode.SrcOver
+        )
+
+        drawRect(
+            brush = Brush.linearGradient(
+                colors = listOf(
+                    Color.Transparent,
+                    Color.White.copy(alpha = 0.08f),
+                    Color.Transparent
+                ),
+                start = Offset(0f, h),
+                end = Offset(w, 0f)
+            ),
+            blendMode = BlendMode.SrcOver
+        )
+
+        drawRect(
+            brush = Brush.verticalGradient(
+                colors = listOf(
+                    Color.Transparent,
+                    Color.Black.copy(alpha = 0.08f)
+                ),
+                startY = h * 0.7f,
+                endY = h
+            ),
+            blendMode = BlendMode.SrcOver
+        )
+
+        drawLine(
+            color = Color.White.copy(alpha = 0.45f),
+            start = Offset(corner * 0.5f, 1.dp.toPx()),
+            end = Offset(w - corner * 0.5f, 1.dp.toPx()),
+            strokeWidth = 1.dp.toPx()
+        )
+
+        drawContent()
+    }
+}
 
 internal fun whiteOverlayAlpha(blur: Int): Float {
     val t = (blur / 80f).coerceIn(0f, 1f)

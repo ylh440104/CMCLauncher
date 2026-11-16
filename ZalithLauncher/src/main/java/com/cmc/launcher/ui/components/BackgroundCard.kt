@@ -37,6 +37,7 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.unit.dp
 import com.cmc.launcher.setting.AllSettings
 import com.cmc.launcher.ui.screens.content.elements.backgroundGlass
+import com.cmc.launcher.ui.screens.content.elements.liquidGlassHighlight
 import com.cmc.launcher.ui.theme.cmc.Cmc
 import com.cmc.launcher.ui.theme.cardColor
 import com.cmc.launcher.ui.theme.cardTitleColor
@@ -78,7 +79,9 @@ fun BackgroundCard(
         border = border ?: cmcCardBorder(),
     ) {
         Column(
-            modifier = Modifier.backgroundGlass(blur, colors.containerColor, influencedByBackground),
+            modifier = Modifier
+                .backgroundGlass(blur, colors.containerColor, influencedByBackground)
+                .liquidGlassHighlight(),
             content = content
         )
     }
@@ -88,8 +91,8 @@ private fun cmcCardBorder(): BorderStroke = BorderStroke(
     width = 1.dp,
     brush = Brush.linearGradient(
         listOf(
-            Cmc.Accent.copy(alpha = 0.30f),
-            Cmc.Blue.copy(alpha = 0.12f),
+            Color.White.copy(alpha = 0.45f),
+            Color.White.copy(alpha = 0.12f),
             Color.Transparent
         )
     )
@@ -126,12 +129,13 @@ fun BackgroundCard(
         enabled = enabled,
     ) {
         Column(
-            modifier = Modifier.backgroundGlass(blur, colors.containerColor, influencedByBackground),
+            modifier = Modifier
+                .backgroundGlass(blur, colors.containerColor, influencedByBackground)
+                .liquidGlassHighlight(),
             content = content
         )
     }
 }
-
 /**
  * 适合在背景卡片组件顶部使用的标题栏Layout
  * @param alpha 组件背景颜色不透明度
