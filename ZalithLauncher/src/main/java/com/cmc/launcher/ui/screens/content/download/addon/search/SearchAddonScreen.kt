@@ -19,6 +19,28 @@
 package com.cmc.launcher.ui.screens.content.download.addon.search
 
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalIconButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Text
+import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.input.ImeAction
+import com.cmc.launcher.R
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.lazy.LazyListScope
@@ -255,6 +277,7 @@ private fun rememberSearchAddonViewModel(
  * @param installedInfo 查询项目本地是否已安装，键为平台与平台项目ID
  * @param extraFilter 额外的过滤器UI
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SearchAddonScreen(
     mainScreenKey: TitledNavKey?,
@@ -295,12 +318,76 @@ fun SearchAddonScreen(
         Triple(parentScreenKey, parentCurrentKey, false),
         Triple(screenKey, currentKey, false)
     ) { isVisible ->
-        Row {
+        var showFilterSheet by remember { mutableStateOf(false) }
+        val filterSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+        val searchedMcMods by viewModel.searchedMcMods.collectAsStateWithLifecycle()
+        val searchedVersions by viewModel.searchedVersions.collectAsStateWithLifecycle()
+
+        Column(modifier = Modifier.fillMaxSize()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                OutlinedTextField(
+                    modifier = Modifier.weight(1f),
+                    value = viewModel.searchFilter.searchName,
+                    onValueChange = { viewModel.updateNameFilter(it) },
+                    placeholder = {
+                        Text(
+                            text = "搜索名称",
+                            maxLines = 1,
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    },
+                    leadingIcon = {
+                        Icon(
+                            modifier = Modifier.size(20.dp),
+                            painter = painterResource(R.drawable.ic_search),
+                            contentDescription = null
+                        )
+                    },
+                    trailingIcon = {
+                        if (viewModel.searchFilter.searchName.isNotEmpty()) {
+                            IconButton(
+                                modifier = Modifier.size(32.dp),
+                                onClick = { viewModel.updateNameFilter("") }
+                            ) {
+                                Icon(
+                                    modifier = Modifier.size(18.dp),
+                                    painter = painterResource(R.drawable.ic_close),
+                                    contentDescription = "清空"
+                                )
+                            }
+                        }
+                    },
+                    singleLine = true,
+                    shape = MaterialTheme.shapes.extraLarge,
+                    textStyle = MaterialTheme.typography.bodyMedium,
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                    keyboardActions = KeyboardActions(
+                        onSearch = { viewModel.resetSearch() }
+                    )
+                )
+                FilledTonalIconButton(
+                    onClick = { showFilterSheet = true }
+                ) {
+                    Icon(
+                        modifier = Modifier.size(22.dp),
+                        painter = painterResource(R.drawable.ic_filter_alt_outlined),
+                        contentDescription = "筛选"
+                    )
+                }
+            }
+
             val resultCtx = rememberAnimatedContext(isVisible = isVisible)
             ResultListLayout(
                 modifier = Modifier
-                    .fillMaxHeight()
-                    .weight(7f)
+                    .fillMaxWidth()
+                    .weight(1f)
                     .animated(resultCtx),
                 classes = platformClasses,
                 searchState = viewModel.searchResult,
@@ -355,61 +442,70 @@ fun SearchAddonScreen(
                     )
                 }
             )
+        }
 
-            val filterCtx = rememberAnimatedContext(isVisible = isVisible)
-            val searchedMcMods by viewModel.searchedMcMods.collectAsStateWithLifecycle()
-            val searchedVersions by viewModel.searchedVersions.collectAsStateWithLifecycle()
-            SearchFilter(
-                modifier = Modifier
-                    .fillMaxHeight()
-                    .weight(3f)
-                    .animated(filterCtx, from = AnimatedDirection.Right),
-                contentPadding = PaddingValues(top = 12.dp, bottom = 12.dp, end = 12.dp),
-                enablePlatform = enablePlatform,
-                searchPlatform = viewModel.searchPlatform,
-                onPlatformChange = {
-                    viewModel.searchPlatform = it
-                    viewModel.researchWithFilter(
-                        viewModel.searchFilter.copy(categories = emptyList(), modloader = null)
-                    )
-                    onPlatformChange(it)
-                },
-                searchName = viewModel.searchFilter.searchName,
-                onSearchNameChange = {
-                    viewModel.updateNameFilter(it)
-                },
-                onSearch = {
-                    viewModel.resetSearch()
-                },
-                searchedMcMods = searchedMcMods,
-                searchedVersions = searchedVersions,
-                gameVersion = viewModel.searchFilter.gameVersion,
-                onGameVersionChange = {
-                    viewModel.updateVersionFilter(it)
-                },
-                sortField = viewModel.searchFilter.sortField,
-                onSortFieldChange = {
-                    viewModel.researchWithFilter(
-                        viewModel.searchFilter.copy(sortField = it)
-                    )
-                },
-                allCategories = categories,
-                categories = viewModel.searchFilter.categories,
-                onCategoryChanged = { categories ->
-                    viewModel.researchWithFilter(
-                        viewModel.searchFilter.copy(categories = categories)
-                    )
-                },
-                enableModLoader = enableModLoader,
-                modloaders = modloaders,
-                modloader = viewModel.searchFilter.modloader,
-                onModLoaderChange = {
-                    viewModel.researchWithFilter(
-                        viewModel.searchFilter.copy(modloader = it)
-                    )
-                },
-                extraFilter = extraFilter
-            )
+        if (showFilterSheet) {
+            ModalBottomSheet(
+                onDismissRequest = { showFilterSheet = false },
+                sheetState = filterSheetState,
+                shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
+            ) {
+                SearchFilter(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .fillMaxHeight(0.92f),
+                    contentPadding = PaddingValues(
+                        start = 12.dp,
+                        end = 12.dp,
+                        bottom = 24.dp
+                    ),
+                    enablePlatform = enablePlatform,
+                    searchPlatform = viewModel.searchPlatform,
+                    onPlatformChange = {
+                        viewModel.searchPlatform = it
+                        viewModel.researchWithFilter(
+                            viewModel.searchFilter.copy(categories = emptyList(), modloader = null)
+                        )
+                        onPlatformChange(it)
+                    },
+                    searchName = viewModel.searchFilter.searchName,
+                    onSearchNameChange = {
+                        viewModel.updateNameFilter(it)
+                    },
+                    onSearch = {
+                        viewModel.resetSearch()
+                        showFilterSheet = false
+                    },
+                    searchedMcMods = searchedMcMods,
+                    searchedVersions = searchedVersions,
+                    gameVersion = viewModel.searchFilter.gameVersion,
+                    onGameVersionChange = {
+                        viewModel.updateVersionFilter(it)
+                    },
+                    sortField = viewModel.searchFilter.sortField,
+                    onSortFieldChange = {
+                        viewModel.researchWithFilter(
+                            viewModel.searchFilter.copy(sortField = it)
+                        )
+                    },
+                    allCategories = categories,
+                    categories = viewModel.searchFilter.categories,
+                    onCategoryChanged = { categories ->
+                        viewModel.researchWithFilter(
+                            viewModel.searchFilter.copy(categories = categories)
+                        )
+                    },
+                    enableModLoader = enableModLoader,
+                    modloaders = modloaders,
+                    modloader = viewModel.searchFilter.modloader,
+                    onModLoaderChange = {
+                        viewModel.researchWithFilter(
+                            viewModel.searchFilter.copy(modloader = it)
+                        )
+                    },
+                    extraFilter = extraFilter
+                )
+            }
         }
     }
 }

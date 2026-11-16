@@ -501,6 +501,7 @@ fun ResultProjectLayout(
                         // 作者
                         authors?.let {
                             Row(
+                                modifier = Modifier.weight(1f, fill = false),
                                 horizontalArrangement = Arrangement.spacedBy(4.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
@@ -510,8 +511,9 @@ fun ResultProjectLayout(
                                     contentDescription = null
                                 )
                                 MarqueeText(
+                                    modifier = Modifier.weight(1f, fill = false),
                                     text = it.joinToString(", "),
-                                    style = MaterialTheme.typography.labelSmall,
+                                    style = MaterialTheme.typography.labelSmall
                                 )
                             }
                         }
@@ -528,7 +530,9 @@ fun ResultProjectLayout(
                             )
                             Text(
                                 text = formatNumberByLocale(context, downloads),
-                                style = MaterialTheme.typography.labelSmall
+                                style = MaterialTheme.typography.labelSmall,
+                                maxLines = 1,
+                                softWrap = false
                             )
                         }
 
@@ -545,7 +549,9 @@ fun ResultProjectLayout(
                                 )
                                 Text(
                                     text = formatNumberByLocale(context, it),
-                                    style = MaterialTheme.typography.labelMedium
+                                    style = MaterialTheme.typography.labelMedium,
+                                    maxLines = 1,
+                                    softWrap = false
                                 )
                             }
                         }
@@ -555,7 +561,7 @@ fun ResultProjectLayout(
                     Text(
                         text = description,
                         style = MaterialTheme.typography.labelSmall,
-                        maxLines = 1,
+                        maxLines = 2,
                         overflow = TextOverflow.Ellipsis
                     )
                 }
