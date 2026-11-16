@@ -26,6 +26,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.isSpecified
 import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.BlurEffect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.GraphicsContext
@@ -193,6 +194,63 @@ private class GlassNode(
         drawRect(
             color = Color.White.copy(alpha = whiteOverlayAlpha(blur)),
             blendMode = BlendMode.Softlight
+        )
+        if (AllSettings.liquidGlass.state) drawLiquidGlass()
+    }
+
+    private fun DrawScope.drawLiquidGlass() {
+        val w = size.width
+        val h = size.height
+        if (w <= 0f || h <= 0f) return
+        val strength = (blur / 40f).coerceIn(0f, 1f)
+
+        drawRect(
+            brush = Brush.linearGradient(
+                colors = listOf(
+                    Color.White.copy(alpha = 0.16f + 0.14f * strength),
+                    Color.Transparent,
+                    Color.White.copy(alpha = 0.05f + 0.08f * strength)
+                ),
+                start = Offset(0f, 0f),
+                end = Offset(w, h)
+            ),
+            blendMode = BlendMode.SrcOver
+        )
+
+        drawRect(
+            brush = Brush.verticalGradient(
+                colors = listOf(
+                    Color.White.copy(alpha = 0.22f + 0.16f * strength),
+                    Color.Transparent
+                ),
+                startY = 0f,
+                endY = h * 0.45f
+            ),
+            blendMode = BlendMode.Plus
+        )
+
+        drawRect(
+            brush = Brush.radialGradient(
+                colors = listOf(
+                    Color.White.copy(alpha = 0.18f),
+                    Color.Transparent
+                ),
+                center = Offset(w * 0.18f, h * 0.12f),
+                radius = maxOf(w, h) * 0.55f
+            ),
+            blendMode = BlendMode.SrcOver
+        )
+
+        drawRect(
+            brush = Brush.verticalGradient(
+                colors = listOf(
+                    Color.Black.copy(alpha = 0.10f + 0.08f * strength),
+                    Color.Transparent
+                ),
+                startY = h,
+                endY = h * 0.5f
+            ),
+            blendMode = BlendMode.SrcOver
         )
     }
 }
