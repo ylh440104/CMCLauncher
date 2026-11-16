@@ -101,7 +101,7 @@ internal fun Modifier.backgroundCapture(
 fun Modifier.liquidGlassHighlight(enabled: Boolean = true): Modifier =
     if (!enabled) this else this then LiquidGlassElement()
 
-private data class LiquidGlassElement : ModifierNodeElement<LiquidGlassNode>() {
+private class LiquidGlassElement : ModifierNodeElement<LiquidGlassNode>() {
     override fun create() = LiquidGlassNode()
     override fun update(node: LiquidGlassNode) {}
 }
