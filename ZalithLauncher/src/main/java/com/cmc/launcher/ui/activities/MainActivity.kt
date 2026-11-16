@@ -321,10 +321,6 @@ class MainActivity : BaseAppCompatActivity() {
                         modifier = Modifier.fillMaxSize(),
                         viewModel = backgroundViewModel
                     )
-                    RainGlassEffect(
-                        modifier = Modifier.fillMaxSize(),
-                        enabled = AllSettings.liquidGlass.state
-                    )
                     MainScreen(
                         screenBackStackModel = screenBackStackModel,
                         eventViewModel = eventViewModel,
@@ -333,6 +329,10 @@ class MainActivity : BaseAppCompatActivity() {
                         submitError = {
                             errorViewModel.showError(it)
                         }
+                    )
+                    RainGlassEffect(
+                        modifier = Modifier.fillMaxSize(),
+                        enabled = AllSettings.liquidGlass.state
                     )
 
                     //节日彩蛋效果层
