@@ -155,8 +155,8 @@ fun RainGlassEffect(
                 val rows = (h / cell).toInt() + 1
                 for (cy in 0 until rows) {
                     for (cx in 0 until cols) {
-                        val rnd = hash21(cx.toFloat() * 3.7f, cy.toFloat() * 7.3f)
-                        if (rnd < 0.55f) continue
+                        val cellRnd = hash21(cx.toFloat() * 3.7f, cy.toFloat() * 7.3f)
+                        if (cellRnd < 0.55f) continue
                         val vx = cx * cell + (hash21(cx.toFloat() * 11.1f, cy.toFloat() * 5.9f) - 0.5f) * cell * 0.7f
                         val vy = cy * cell + (hash21(cx.toFloat() * 2.3f, cy.toFloat() * 13.7f) - 0.5f) * cell * 0.7f
                         val vol = 1.2f + hash21(cx.toFloat() * 8.8f, cy.toFloat() * 4.4f) * 5.5f
