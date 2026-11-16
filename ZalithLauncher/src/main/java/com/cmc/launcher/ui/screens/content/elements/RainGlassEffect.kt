@@ -419,7 +419,10 @@ fun RainGlassEffect(
             }
 
             trails.forEach { t ->
-                t.segs.removeAll { s -> (s.wet -= TRAIL_FADE * dt) <= 0f }
+                t.segs.removeAll { s ->
+                    s.wet -= TRAIL_FADE * dt
+                    s.wet <= 0f
+                }
             }
             trails.removeAll { it.segs.isEmpty() }
 
