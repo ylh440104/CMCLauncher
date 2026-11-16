@@ -228,7 +228,7 @@ fun RainGlassEffect(
                     trails.last().segs += TrailSeg().apply {
                         x = d.x
                         y = d.y
-                        w = tw
+                        this.w = tw
                     }
 
                     d.volumeMm3 -= DEPOSIT_RATE * dt * (1f + d.velocity / 120f)
