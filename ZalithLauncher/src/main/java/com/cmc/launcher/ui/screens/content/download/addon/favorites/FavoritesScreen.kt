@@ -206,24 +206,23 @@ fun FavoritesScreen(
             viewModel.reload()
         }
 
-        Row(modifier = Modifier.fillMaxSize()) {
-            val ctx = rememberAnimatedContext(isVisible = isVisible)
-            FavoritesContent(
-                modifier = Modifier
-                    .fillMaxHeight()
-                    .weight(7f)
-                    .animated(ctx),
-                viewModel = viewModel,
-                swapToDownload = swapToDownload
-            )
-
+        Column(modifier = Modifier.fillMaxSize()) {
             val ctxX = rememberAnimatedContext(isVisible = isVisible)
             FavoritesFilter(
                 modifier = Modifier
-                    .fillMaxHeight()
-                    .weight(3f)
-                    .animated(ctxX, from = AnimatedDirection.Right),
+                    .fillMaxWidth()
+                    .animated(ctxX, from = AnimatedDirection.Top),
                 viewModel = viewModel
+            )
+
+            val ctx = rememberAnimatedContext(isVisible = isVisible)
+            FavoritesContent(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .animated(ctx),
+                viewModel = viewModel,
+                swapToDownload = swapToDownload
             )
         }
     }

@@ -229,34 +229,31 @@ private fun Content(
     onPlatformChange: (Platform) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Row(
-        modifier = modifier,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    Column(
+        modifier = modifier
     ) {
-        ContentResult(
-            modifier = Modifier
-                .weight(0.7f)
-                .fillMaxHeight(),
-            isVisible = isVisible,
-            operation = operation,
-            onReload = onSearch,
-            onView = onView,
-            openLink = openLink,
-            defaultClasses = defaultClasses,
-            contentPadding = PaddingValues(start = 12.dp, top = 12.dp, bottom = 12.dp)
-        )
-
         ContentFilter(
             modifier = Modifier
-                .weight(0.3f)
-                .fillMaxHeight()
-                .padding(top = 12.dp, end = 12.dp, bottom = 12.dp),
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 8.dp),
             isVisible = isVisible,
             onSearch = onSearch,
             projectId = projectId,
             onProjectIdChange = onProjectIdChange,
             searchPlatform = searchPlatform,
             onPlatformChange = onPlatformChange,
+        )
+        ContentResult(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f),
+            isVisible = isVisible,
+            operation = operation,
+            onReload = onSearch,
+            onView = onView,
+            openLink = openLink,
+            defaultClasses = defaultClasses,
+            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
         )
     }
 }

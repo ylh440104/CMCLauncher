@@ -18,6 +18,18 @@
 
 package com.cmc.launcher.ui.screens.content
 
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.Text
+import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.ui.res.painterResource
+import com.cmc.launcher.R
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -56,7 +68,6 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.cmc.launcher.R
 import com.cmc.launcher.context.COPY_LABEL_ACCOUNT_UUID
 import com.cmc.launcher.game.account.Account
 import com.cmc.launcher.game.account.AccountsManager
@@ -223,6 +234,7 @@ fun AccountManageScreen(
 /**
  * 账号管理界面的实际内容布局
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun AccountManageContent(
     isVisible: Boolean,
@@ -231,25 +243,42 @@ private fun AccountManageContent(
     operationUiState: AccountManageViewModel.OperationUiState,
     actions: AccountActions,
 ) {
-    Row(
+    var showActionsSheet by remember { mutableStateOf(false) }
+    val actionsSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    Column(
         modifier = Modifier.fillMaxSize()
     ) {
-        ActionsLayout(
-            isVisible = isVisible,
+        Row(
             modifier = Modifier
-                .fillMaxHeight()
-                .padding(all = 12.dp)
-                .weight(3f),
-            currentAccount = profileUiState.currentAccount,
-            actions = actions
-        )
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            FilledTonalButton(
+                onClick = { showActionsSheet = true }
+            ) {
+                Icon(
+                    modifier = Modifier.size(18.dp),
+                    painter = painterResource(R.drawable.ic_add),
+                    contentDescription = null
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = "添加账号",
+                    style = MaterialTheme.typography.labelLarge,
+                    maxLines = 1
+                )
+            }
+        }
 
         AccountsLayout(
             isVisible = isVisible,
             modifier = Modifier
-                .fillMaxHeight()
-                .padding(top = 12.dp, end = 12.dp, bottom = 12.dp)
-                .weight(7f),
+                .fillMaxWidth()
+                .weight(1f)
+                .padding(start = 12.dp, end = 12.dp, bottom = 12.dp),
             accounts = profileUiState.accounts,
             currentAccount = profileUiState.currentAccount,
             accountOperation = operationUiState.accountOp,
@@ -260,11 +289,29 @@ private fun AccountManageContent(
         )
     }
 
+    if (showActionsSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showActionsSheet = false },
+            sheetState = actionsSheetState,
+            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
+        ) {
+            ActionsLayout(
+                isVisible = true,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .fillMaxHeight(0.85f),
+                currentAccount = profileUiState.currentAccount,
+                actions = actions
+            )
+        }
+    }
+
     LoginMenuOperation(loginUiState.menuOp, actions, profileUiState.authServers)
     MicrosoftLoginOperation(loginUiState.microsoftOp, actions)
     LocalLoginOperation(loginUiState.localOp, actions)
     OtherLoginOperation(loginUiState.otherOp, actions)
     ServerTypeOperation(operationUiState.serverOp, actions)
+}
 }
 
 /**

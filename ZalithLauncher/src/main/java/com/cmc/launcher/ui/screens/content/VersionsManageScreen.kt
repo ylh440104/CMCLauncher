@@ -39,6 +39,16 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.LoadingIndicator
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.Text
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.TopAppBarDefaults
@@ -247,6 +257,7 @@ private fun rememberVersions(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun VersionsManageScreen(
     backScreenViewModel: ScreenBackStackViewModel,
@@ -271,36 +282,44 @@ fun VersionsManageScreen(
         screenKey = NormalNavKey.VersionsManager,
         currentKey = backScreenViewModel.mainScreen.currentKey
     ) { isVisible ->
-        Row {
-            LeftMenu(
-                isVisible = isVisible,
-                isRefreshing = isRefreshing,
-                swapToFileSelector = { path ->
-                    backScreenViewModel.mainScreen.backStack.navigateToFileSelector(
-                        startPath = path,
-                        selectFile = false,
-                        saveKey = NormalNavKey.VersionsManager
-                    ) { path ->
-                        viewModel.gamePathOperation = GamePathOperation.AddNewPath(path)
-                    }
-                },
-                onCleanupGameFiles = {
-                    if (viewModel.cleanupOperation == CleanupOperation.None) {
-                        viewModel.cleanupOperation = CleanupOperation.Tip
-                    }
-                },
-                changePathOperation = {
-                    viewModel.gamePathOperation = it
-                },
+        var showPathSheet by remember { mutableStateOf(false) }
+        val pathSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+        val gamePaths by GamePathManager.gamePathData.collectAsStateWithLifecycle()
+        val currentPath by GamePathManager.currentPath.collectAsStateWithLifecycle()
+        val currentPathTitle = remember(gamePaths, currentPath) {
+            gamePaths.firstOrNull { it.path == currentPath }?.title ?: "默认目录"
+        }
+
+        Column(modifier = Modifier.fillMaxSize()) {
+            Row(
                 modifier = Modifier
-                    .fillMaxHeight()
-                    .weight(2.5f)
-            )
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                FilledTonalButton(
+                    onClick = { showPathSheet = true }
+                ) {
+                    Icon(
+                        modifier = Modifier.size(18.dp),
+                        painter = painterResource(R.drawable.ic_folder_filled),
+                        contentDescription = null
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = currentPathTitle,
+                        style = MaterialTheme.typography.labelLarge,
+                        maxLines = 1
+                    )
+                }
+            }
 
             VersionsLayout(
                 modifier = Modifier
-                    .fillMaxHeight()
-                    .weight(7.5f),
+                    .fillMaxWidth()
+                    .weight(1f),
                 isVisible = isVisible,
                 isRefreshing = isRefreshing,
                 versions = versions,
@@ -323,28 +342,63 @@ fun VersionsManageScreen(
                     backScreenViewModel.navigateToDownload()
                 }
             )
-
-            CleanupOperation(
-                operation = viewModel.cleanupOperation,
-                changeOperation = { viewModel.cleanupOperation = it },
-                cleaner = viewModel.cleaner,
-                onClean = {
-                    viewModel.cleanUnusedFiles(
-                        onStart = {
-                            eventViewModel.sendKeepScreen(true)
-                        },
-                        onStop = {
-                            eventViewModel.sendKeepScreen(false)
-                        }
-                    )
-                },
-                onCancel = {
-                    viewModel.cancelCleaner()
-                    eventViewModel.sendKeepScreen(false)
-                },
-                submitError = submitError
-            )
         }
+
+        if (showPathSheet) {
+            ModalBottomSheet(
+                onDismissRequest = { showPathSheet = false },
+                sheetState = pathSheetState,
+                shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
+            ) {
+                LeftMenu(
+                    isVisible = true,
+                    isRefreshing = isRefreshing,
+                    swapToFileSelector = { path ->
+                        showPathSheet = false
+                        backScreenViewModel.mainScreen.backStack.navigateToFileSelector(
+                            startPath = path,
+                            selectFile = false,
+                            saveKey = NormalNavKey.VersionsManager
+                        ) { path ->
+                            viewModel.gamePathOperation = GamePathOperation.AddNewPath(path)
+                        }
+                    },
+                    onCleanupGameFiles = {
+                        showPathSheet = false
+                        if (viewModel.cleanupOperation == CleanupOperation.None) {
+                            viewModel.cleanupOperation = CleanupOperation.Tip
+                        }
+                    },
+                    changePathOperation = {
+                        viewModel.gamePathOperation = it
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .fillMaxHeight(0.85f)
+                )
+            }
+        }
+
+        CleanupOperation(
+            operation = viewModel.cleanupOperation,
+            changeOperation = { viewModel.cleanupOperation = it },
+            cleaner = viewModel.cleaner,
+            onClean = {
+                viewModel.cleanUnusedFiles(
+                    onStart = {
+                        eventViewModel.sendKeepScreen(true)
+                    },
+                    onStop = {
+                        eventViewModel.sendKeepScreen(false)
+                    }
+                )
+            },
+            onCancel = {
+                viewModel.cancelCleaner()
+                eventViewModel.sendKeepScreen(false)
+            },
+            submitError = submitError
+        )
     }
 }
 
