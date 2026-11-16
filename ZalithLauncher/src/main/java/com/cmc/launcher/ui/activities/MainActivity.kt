@@ -70,6 +70,7 @@ import com.cmc.launcher.ui.screens.NestedNavKey
 import com.cmc.launcher.ui.screens.NormalNavKey
 import com.cmc.launcher.ui.screens.content.elements.Background
 import com.cmc.launcher.ui.screens.content.elements.LaunchGameOperation
+import com.cmc.launcher.ui.screens.content.elements.RainGlassEffect
 import com.cmc.launcher.ui.screens.content.elements.TitleTaskFlowDialog
 import com.cmc.launcher.ui.screens.content.navigateToLogView
 import com.cmc.launcher.ui.screens.content.navigateToWeb
@@ -320,7 +321,10 @@ class MainActivity : BaseAppCompatActivity() {
                         modifier = Modifier.fillMaxSize(),
                         viewModel = backgroundViewModel
                     )
-
+                    RainGlassEffect(
+                        modifier = Modifier.fillMaxSize(),
+                        enabled = AllSettings.liquidGlass.state
+                    )
                     MainScreen(
                         screenBackStackModel = screenBackStackModel,
                         eventViewModel = eventViewModel,

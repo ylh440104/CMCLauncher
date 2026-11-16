@@ -174,12 +174,12 @@ fun MirrorSettingScreen(
                                 .padding(start = 12.dp)
                         ) {
                             Text(
-                                text = "液态玻璃",
+                                text = "雨滴滑落",
                                 style = MaterialTheme.typography.titleMedium,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                             Text(
-                                text = "高光、折射与顶部亮边",
+                                text = "背景雨滴与水痕滑落效果",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
