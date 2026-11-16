@@ -244,8 +244,7 @@ private fun AccountManageContent(
     operationUiState: AccountManageViewModel.OperationUiState,
     actions: AccountActions,
 ) {
-    var showActionsSheet by remember { mutableStateOf(false) }
-    val actionsSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    var showLoginMenu by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier.fillMaxSize()
@@ -258,16 +257,43 @@ private fun AccountManageContent(
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             FilledTonalButton(
-                onClick = { showActionsSheet = true }
+                modifier = Modifier.weight(1f),
+                onClick = {
+                    if (!isMicrosoftLogging()) {
+                        actions.onIntent(
+                            AccountManageIntent.UpdateMicrosoftLoginOp(
+                                MicrosoftLoginOperation.Tip
+                            )
+                        )
+                    }
+                }
             ) {
-                Icon(
-                    modifier = Modifier.size(18.dp),
-                    painter = painterResource(R.drawable.ic_add),
-                    contentDescription = null
-                )
-                Spacer(modifier = Modifier.width(6.dp))
                 Text(
-                    text = "添加账号",
+                    text = "微软",
+                    style = MaterialTheme.typography.labelLarge,
+                    maxLines = 1
+                )
+            }
+            FilledTonalButton(
+                modifier = Modifier.weight(1f),
+                onClick = {
+                    actions.onIntent(
+                        AccountManageIntent.UpdateLocalLoginOp(LocalLoginOperation.Edit)
+                    )
+                }
+            ) {
+                Text(
+                    text = "离线",
+                    style = MaterialTheme.typography.labelLarge,
+                    maxLines = 1
+                )
+            }
+            FilledTonalButton(
+                modifier = Modifier.weight(1f),
+                onClick = { showLoginMenu = true }
+            ) {
+                Text(
+                    text = "认证服",
                     style = MaterialTheme.typography.labelLarge,
                     maxLines = 1
                 )
@@ -290,21 +316,40 @@ private fun AccountManageContent(
         )
     }
 
-    if (showActionsSheet) {
-        ModalBottomSheet(
-            onDismissRequest = { showActionsSheet = false },
-            sheetState = actionsSheetState,
-            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
-        ) {
-            ActionsLayout(
-                isVisible = true,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .fillMaxHeight(0.85f),
-                currentAccount = profileUiState.currentAccount,
-                actions = actions
-            )
-        }
+    if (showLoginMenu) {
+        LoginMenuDialog(
+            onDismissRequest = { showLoginMenu = false },
+            authServers = profileUiState.authServers,
+            onMicrosoftLogin = {
+                if (!isMicrosoftLogging()) {
+                    actions.onIntent(
+                        AccountManageIntent.UpdateMicrosoftLoginOp(
+                            MicrosoftLoginOperation.Tip
+                        )
+                    )
+                }
+            },
+            onLocalLogin = {
+                actions.onIntent(AccountManageIntent.UpdateLocalLoginOp(LocalLoginOperation.Edit))
+            },
+            onAuthServerLogin = { server ->
+                actions.onIntent(
+                    AccountManageIntent.UpdateOtherLoginOp(
+                        OtherLoginOperation.OnLogin(server)
+                    )
+                )
+            },
+            onAddAuthServer = {
+                actions.onIntent(AccountManageIntent.UpdateServerOp(ServerOperation.AddNew))
+            },
+            onDeleteAuthServer = { server ->
+                actions.onIntent(
+                    AccountManageIntent.UpdateServerOp(
+                        ServerOperation.Delete(server)
+                    )
+                )
+            }
+        )
     }
 
     LoginMenuOperation(loginUiState.menuOp, actions, profileUiState.authServers)

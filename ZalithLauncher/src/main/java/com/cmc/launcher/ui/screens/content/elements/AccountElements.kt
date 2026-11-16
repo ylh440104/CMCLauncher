@@ -453,10 +453,10 @@ fun LoginMenuDialog(
     ) {
         BoxWithConstraints(
             modifier = Modifier
-                .padding(all = 16.dp)
+                .padding(all = 12.dp)
                 .heightIn(max = rememberDialogMaxHeight())
                 .fillMaxHeight()
-                .fillMaxWidth(0.6f),
+                .fillMaxWidth(0.94f),
             contentAlignment = Alignment.Center
         ) {
             Surface(
@@ -472,20 +472,20 @@ fun LoginMenuDialog(
                 Column(
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Row(
+                    LazyColumn(
                         modifier = Modifier
                             .weight(1f, fill = false)
-                            .fillMaxWidth()
+                            .fillMaxWidth(),
+                        contentPadding = PaddingValues(
+                            start = 12.dp,
+                            top = 12.dp,
+                            end = 12.dp,
+                            bottom = 12.dp
+                        ),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        Column(
-                            modifier = Modifier
-                                .weight(1f)
-                                .verticalScroll(rememberScrollState())
-                                .padding(vertical = 12.dp)
-                                .padding(start = 12.dp, end = 6.dp),
-                            verticalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            //微软登录
+                        //微软登录
+                        item {
                             LoginItem(
                                 modifier = Modifier.fillMaxWidth(),
                                 title = stringResource(R.string.account_type_microsoft),
@@ -494,7 +494,9 @@ fun LoginMenuDialog(
                                     onDismissRequest()
                                 }
                             )
-                            //离线登录
+                        }
+                        //离线登录
+                        item {
                             LoginItem(
                                 modifier = Modifier.fillMaxWidth(),
                                 title = stringResource(R.string.account_type_local),
@@ -505,51 +507,41 @@ fun LoginMenuDialog(
                             )
                         }
 
-                        LazyColumn(
-                            modifier = Modifier.weight(1f),
-                            contentPadding = PaddingValues(
-                                start = 6.dp,
-                                top = 12.dp,
-                                end = 12.dp,
-                                bottom = 12.dp
-                            ),
-                            verticalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            item {
-                                //添加认证服务器
-                                InfoLayoutTextItem(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    title = stringResource(R.string.account_add_new_server_button),
-                                    showArrow = true,
-                                    onClick = {
-                                        onAddAuthServer()
-                                        onDismissRequest()
-                                    }
-                                )
-                            }
+                        //添加认证服务器
+                        item {
+                            InfoLayoutTextItem(
+                                modifier = Modifier.fillMaxWidth(),
+                                title = stringResource(R.string.account_add_new_server_button),
+                                showArrow = true,
+                                onClick = {
+                                    onAddAuthServer()
+                                    onDismissRequest()
+                                }
+                            )
+                        }
 
-                            items(authServers) { server ->
-                                LoginItem(
-                                    title = server.serverName,
-                                    icon = {
-                                        IconButton(
-                                            modifier = Modifier.size(22.dp),
-                                            onClick = {
-                                                onDeleteAuthServer(server)
-                                            }
-                                        ) {
-                                            Icon(
-                                                painter = painterResource(R.drawable.ic_delete_outlined),
-                                                contentDescription = stringResource(R.string.generic_delete)
-                                            )
+                        items(authServers) { server ->
+                            LoginItem(
+                                modifier = Modifier.fillMaxWidth(),
+                                title = server.serverName,
+                                icon = {
+                                    IconButton(
+                                        modifier = Modifier.size(22.dp),
+                                        onClick = {
+                                            onDeleteAuthServer(server)
                                         }
-                                    },
-                                    onClick = {
-                                        onAuthServerLogin(server)
-                                        onDismissRequest()
+                                    ) {
+                                        Icon(
+                                            painter = painterResource(R.drawable.ic_delete_outlined),
+                                            contentDescription = stringResource(R.string.generic_delete)
+                                        )
                                     }
-                                )
-                            }
+                                },
+                                onClick = {
+                                    onAuthServerLogin(server)
+                                    onDismissRequest()
+                                }
+                            )
                         }
                     }
 
@@ -1503,7 +1495,7 @@ fun ChangeSkinDialog(
                 .padding(all = 16.dp)
                 .heightIn(max = rememberDialogMaxHeight())
                 .fillMaxHeight()
-                .fillMaxWidth(0.6f),
+                .fillMaxWidth(0.94f),
             contentAlignment = Alignment.Center
         ) {
             Surface(
@@ -1521,14 +1513,14 @@ fun ChangeSkinDialog(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    Row(
+Column(
                         modifier = Modifier.weight(1f),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         Box(
                             modifier = Modifier
-                                .fillMaxHeight()
-                                .weight(1f)
+                                .fillMaxWidth()
+                                .height(180.dp)
                                 .clip(MaterialTheme.shapes.large)
                                 .background(itemColor(false)),
                             contentAlignment = Alignment.Center
@@ -1543,11 +1535,10 @@ fun ChangeSkinDialog(
                                 gazeEnabled = false
                             )
                         }
-
                         Column(
                             modifier = Modifier
+                                .fillMaxWidth()
                                 .weight(1f)
-                                .fillMaxHeight()
                                 .verticalScroll(rememberScrollState()),
                             verticalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
