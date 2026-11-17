@@ -648,7 +648,8 @@ void main() {
             d.velState.z = 1.0;
             float volNew = 0.5236 * dM * dM * dM * 0.55;
             bool absorbed = false;
-            for (uint q = 0u; q < uint(drops.length()); q++) {
+            for (int pk = 0; pk < 12; pk++) {
+                uint q = (idx * 7u + uint(pk) * 37u + 1u) % max(1u, uint(drops.length()));
                 if (q == idx) continue;
                 if (drops[q].velState.w < 0.5) continue;
                 if (drops[q].velState.z < 0.5) continue;
@@ -793,13 +794,13 @@ void main() {
     }
 
     if (speedM > 0.0008) {
-        float tailLen = clamp(speedM * uPxPerMeter * 0.16, 2.0, 28.0);
+        float tailLen = clamp(speedM * uPxPerMeter * 0.10, 2.0, 9.0);
         int tLen = int(tailLen);
         for (int ty = 1; ty <= tLen; ty++) {
             float fall = 1.0 - float(ty) / tailLen;
             int yy = c.y + ty;
             if (yy < 0 || yy >= int(uSimSize.y)) break;
-            for (int ox = -2; ox <= 2; ox++) {
+            for (int ox = -1; ox <= 1; ox++) {
                 int xx = c.x + ox;
                 if (xx < 0 || xx >= int(uSimSize.x)) continue;
                 float wgt = exp(-abs(float(ox)) / 1.3) * fall;
