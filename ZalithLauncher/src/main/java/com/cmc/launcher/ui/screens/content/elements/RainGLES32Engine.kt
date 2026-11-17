@@ -3,7 +3,6 @@ package com.cmc.launcher.ui.screens.content.elements
 import android.content.Context
 import android.graphics.SurfaceTexture
 import android.opengl.GLES11Ext
-import android.opengl.GLES31
 import android.opengl.GLES32
 import android.opengl.GLSurfaceView
 import android.util.Log
@@ -266,6 +265,9 @@ private class RainRenderer : GLSurfaceView.Renderer {
         GLES32.glGenTextures(2, texs, 0)
         filmA = texs[0]
         filmB = texs[1]
+        val fbos = IntArray(1)
+        GLES32.glGenFramebuffers(1, fbos, 0)
+        GLES32.glBindFramebuffer(GLES32.GL_FRAMEBUFFER, fbos[0])
         for (t in texs) {
             GLES32.glBindTexture(GLES32.GL_TEXTURE_2D, t)
             GLES32.glTexStorage2D(GLES32.GL_TEXTURE_2D, 1, GLES32.GL_RGBA16F, width, height)
@@ -273,9 +275,12 @@ private class RainRenderer : GLSurfaceView.Renderer {
             GLES32.glTexParameteri(GLES32.GL_TEXTURE_2D, GLES32.GL_TEXTURE_MAG_FILTER, GLES32.GL_LINEAR)
             GLES32.glTexParameteri(GLES32.GL_TEXTURE_2D, GLES32.GL_TEXTURE_WRAP_S, GLES32.GL_CLAMP_TO_EDGE)
             GLES32.glTexParameteri(GLES32.GL_TEXTURE_2D, GLES32.GL_TEXTURE_WRAP_T, GLES32.GL_CLAMP_TO_EDGE)
-            GLES31.glClearTexImage(t, 0, GLES32.GL_RGBA, GLES32.GL_HALF_FLOAT, null)
+            GLES32.glFramebufferTexture2D(GLES32.GL_FRAMEBUFFER, GLES32.GL_COLOR_ATTACHMENT0, GLES32.GL_TEXTURE_2D, t, 0)
+            GLES32.glClearColor(0f, 0f, 0f, 0f)
+            GLES32.glClear(GLES32.GL_COLOR_BUFFER_BIT)
         }
         GLES32.glBindFramebuffer(GLES32.GL_FRAMEBUFFER, 0)
+        GLES32.glDeleteFramebuffers(1, fbos, 0)
     }
 
     private fun buildCompute(src: String, tag: String): Int {
