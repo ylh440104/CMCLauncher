@@ -320,7 +320,7 @@ private class RainGLES32Renderer(private val context: Context) : GLSurfaceView.R
                 continue
             }
             val u = Random.nextFloat().coerceIn(1.0e-4f, 0.9999f)
-            val dM = ((-kotlin.math.ln(1.0 - u)) / 2.6e-3f).coerceIn(4.0e-4f, 5.2e-3f)
+            val dM = ((-kotlin.math.ln(1.0 - u.toDouble())) / 2.6e-3).toFloat().coerceIn(4.0e-4f, 5.2e-3f)
             val rM = 0.5f * dM
             val landed = i % 3 == 0
             data[base] = Random.nextFloat() * width
