@@ -14,6 +14,7 @@ import android.widget.FrameLayout
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.nio.FloatBuffer
+import java.nio.IntBuffer
 import javax.microedition.khronos.egl.EGLConfig
 import javax.microedition.khronos.opengles.GL10
 import kotlin.math.max
@@ -40,7 +41,9 @@ class RainGLES32OverlayLayout(
 
     private val captureCallback = object : Choreographer.FrameCallback {
         override fun doFrame(frameTimeNanos: Long) {
-            captureUiToSurface()
+            if (renderer.blackStreak < 2 && glView.visibility == VISIBLE) {
+                captureUiToSurface()
+            }
             Choreographer.getInstance().postFrameCallback(this)
         }
     }
@@ -50,6 +53,16 @@ class RainGLES32OverlayLayout(
         glView.renderMode = GLSurfaceView.RENDERMODE_CONTINUOUSLY
         addView(contentView, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
         addView(glView, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
+        post(object : Runnable {
+            override fun run() {
+                if (renderer.blackStreak >= 2) {
+                    glView.visibility = GONE
+                    Log.w(TAG, "black output detected, GL layer hidden")
+                } else {
+                    postDelayed(this, 500)
+                }
+            }
+        })
     }
 
     override fun onAttachedToWindow() {
@@ -110,6 +123,14 @@ private class RainGLES32Renderer(context: Context) : GLSurfaceView.Renderer {
 
     @Volatile
     var uiExternalTexId = 0
+        private set
+
+    @Volatile
+    var framesDrawn = 0
+        private set
+
+    @Volatile
+    var blackStreak = 0
         private set
 
     @Volatile
@@ -248,6 +269,18 @@ private class RainGLES32Renderer(context: Context) : GLSurfaceView.Renderer {
 
         GLES32.glBindVertexArray(quadVao)
         GLES32.glDrawArrays(GLES32.GL_TRIANGLES, 0, 3)
+        framesDrawn++
+        if (framesDrawn == 30 || framesDrawn == 150) {
+            val px = IntBuffer.allocate(1)
+            GLES32.glReadPixels(width / 2, height / 2, 1, 1, GLES32.GL_RGBA, GLES32.GL_UNSIGNED_BYTE, px)
+            val v = px.get(0)
+            val r = v and 0xFF
+            val g = (v shr 8) and 0xFF
+            val b = (v shr 16) and 0xFF
+            val lum = (r + g + b) / 3
+            if (lum < 12) blackStreak++
+            Log.i(TAG, "frame=$framesDrawn rgb=($r,$g,$b) matrixReady=$matrixReady blackStreak=$blackStreak")
+        }
     }
 
     private var pingPong = 0
