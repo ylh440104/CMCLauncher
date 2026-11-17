@@ -1093,7 +1093,6 @@ in vec2 vUv;
 out vec4 fragColor;
 uniform samplerExternalOES uUiTex;
 uniform sampler2D uHeightTex;
-uniform sampler2D uDropOff;
 uniform mat4 uStMatrix;
 layout(r32i, binding = 2) uniform readonly highp iimage2D uCausticBuf;
 uniform vec2 uResolution;
@@ -1194,25 +1193,6 @@ void main() {
     ivec2 pxCoord = ivec2(clamp(fragPx, vec2(0.0), uResolution - 1.0));
     vec3 rgbCaustic = sampleSmoothCaustics(pxCoord);
     col *= (vec3(1.0) + rgbCaustic * 0.22);
-
-    vec4 dropInfo = texelFetch(uDropOff, pxCoord, 0);
-    if (dropInfo.z > 0.001) {
-        vec2 off = dropInfo.xy;
-        float cov = clamp(dropInfo.z, 0.0, 1.0);
-        float tir = dropInfo.w;
-        vec2 dirN = normalize(off + vec2(1.0e-5, 1.0e-5));
-        vec2 basePx = fragPx + off;
-        vec3 rc;
-        rc.r = texture(uUiTex, uiUv(clamp((basePx + dirN * 1.3) / uResolution, vec2(0.0), vec2(1.0)))).r;
-        rc.g = texture(uUiTex, uiUv(clamp(basePx / uResolution, vec2(0.0), vec2(1.0)))).g;
-        rc.b = texture(uUiTex, uiUv(clamp((basePx - dirN * 1.3) / uResolution, vec2(0.0), vec2(1.0)))).b;
-        if (tir > 1.5) {
-            rc = mix(rc, sampleRainyEnv(vec3(dirN * 0.55, 1.0)) * 0.90, 0.60);
-        } else if (tir > 0.45) {
-            rc = mix(rc, sampleRainyEnv(vec3(dirN * 0.35, 1.0)) * 0.94, 0.22);
-        }
-        col = mix(col, rc, cov);
-    }
 
     for (int i = 0; i < 6; i++) {
         float seed = float(i) * 19.37;
