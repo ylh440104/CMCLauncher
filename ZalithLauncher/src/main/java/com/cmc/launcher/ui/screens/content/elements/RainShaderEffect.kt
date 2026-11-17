@@ -32,38 +32,41 @@ float2 hash22(float2 p) {
     return fract((p3.xx + p3.yz) * p3.zy);
 }
 
-float dropMask(float2 uv, float cellPx, float seed, float minR, float maxR) {
+float dropD(float2 uv, float cellPx, float seed, float minR, float maxR, float present) {
     float2 st = uv * (resolution.y / cellPx);
     float2 id = floor(st);
     float2 gv = fract(st) - 0.5;
     float2 rnd = hash22(id + seed);
-    float2 p = gv - (rnd - 0.5) * 0.68;
+    if (rnd.x > present) return 1.0;
+    float2 p = gv - (rnd - 0.5) * 0.5;
     float r = mix(minR, maxR, rnd.y);
     float d = length(p) - r;
-    d -= 0.15 * r * smoothstep(-0.5 * r, 0.8 * r, -p.y);
-    return smoothstep(0.015, -0.045, d);
+    d -= 0.16 * r * smoothstep(-0.6 * r, 0.9 * r, -p.y);
+    return d;
 }
 
-float3 dropNormal(float2 uv, float cellPx, float seed, float minR, float maxR, float e) {
-    float hC = dropMask(uv, cellPx, seed, minR, maxR);
-    float hR = dropMask(uv + float2(e, 0.0), cellPx, seed, minR, maxR);
-    float hU = dropMask(uv + float2(0.0, e), cellPx, seed, minR, maxR);
-    return float3((hR - hC) / e, (hU - hC) / e, 1.0);
+float3 dropNormalAt(float2 uv, float cellPx, float seed, float minR, float maxR, float present, float e) {
+    float d0 = dropD(uv, cellPx, seed, minR, maxR, present);
+    float dX = dropD(uv + float2(e, 0.0), cellPx, seed, minR, maxR, present);
+    float dY = dropD(uv + float2(0.0, e), cellPx, seed, minR, maxR, present);
+    float inside = smoothstep(0.01, -0.05, d0);
+    return float3((dX - d0) / e, (dY - d0) / e, inside);
 }
 
 float streaks(float2 uv, float tt) {
     float s = 0.0;
-    for (int k = 0; k < 3; k++) {
+    for (int k = 0; k < 2; k++) {
         float fk = float(k);
-        float speed = 0.55 + fk * 0.38;
-        float scaleX = 30.0 + fk * 22.0;
+        float speed = 0.5 + fk * 0.35;
+        float scaleX = 26.0 + fk * 18.0;
         float x = uv.x * scaleX;
         float col = floor(x);
         float h = hash12(float2(col, fk * 91.7));
-        float y0 = fract(uv.y * (0.5 + h * 0.7) + tt * speed * (0.75 + h * 0.5) + h * 19.0);
-        float m = smoothstep(0.0, 0.35, y0) * (1.0 - smoothstep(0.65, 1.0, y0));
-        float inCol = smoothstep(0.0, 0.3, fract(x)) * (1.0 - smoothstep(0.7, 1.0, fract(x)));
-        s += m * inCol * (0.045 - fk * 0.010);
+        if (h > 0.55) continue;
+        float y0 = fract(uv.y * (0.45 + h * 0.6) + tt * speed * (0.7 + h * 0.5) + h * 19.0);
+        float m = smoothstep(0.0, 0.4, y0) * (1.0 - smoothstep(0.6, 1.0, y0));
+        float inCol = smoothstep(0.0, 0.35, fract(x)) * (1.0 - smoothstep(0.65, 1.0, fract(x)));
+        s += m * inCol * 0.05;
     }
     return s;
 }
@@ -72,38 +75,31 @@ half4 main(float2 fragPx) {
     float2 uv = fragPx / resolution.y;
     float tt = t;
 
-    float m1 = dropMask(uv, 46.0, 3.1, 0.16, 0.30);
-    float m2 = dropMask(uv, 78.0, 7.7, 0.18, 0.34);
-    float m3 = dropMask(uv + float2(0.0, tt * 0.012), 118.0, 11.3, 0.22, 0.40);
-    float m4 = dropMask(uv + float2(0.0, tt * 0.030), 168.0, 19.9, 0.26, 0.46);
-    float m = max(max(m1, m2), max(m3, m4));
+    float3 g1 = dropNormalAt(uv, 88.0, 3.1, 0.14, 0.24, 0.30, 0.0035);
+    float3 g2 = dropNormalAt(uv, 132.0, 7.7, 0.16, 0.30, 0.22, 0.0035);
+    float3 g3 = dropNormalAt(uv + float2(0.0, tt * 0.010), 176.0, 11.3, 0.20, 0.36, 0.15, 0.0035);
 
-    if (m < 0.02) {
+    float inside = max(max(g1.z, g2.z), g3.z);
+    float2 grad = g1.xy * g1.z + g2.xy * g2.z + g3.xy * g3.z;
+
+    if (inside < 0.01) {
         half4 bg = content.eval(fragPx);
         float st = streaks(uv, tt);
         return half4(bg.rgb + half3(st), bg.a);
     }
 
-    float e = 0.0035;
-    float3 n1 = dropNormal(uv, 46.0, 3.1, 0.16, 0.30, e);
-    float3 n2 = dropNormal(uv, 78.0, 7.7, 0.18, 0.34, e);
-    float3 n3 = dropNormal(uv + float2(0.0, tt * 0.012), 118.0, 11.3, 0.22, 0.40, e);
-    float3 n4 = dropNormal(uv + float2(0.0, tt * 0.030), 168.0, 19.9, 0.26, 0.46, e);
-    float3 grad3 = n1 + n2 + n3 + n4;
-    float2 grad = normalize(grad3.xz + 1e-5);
-    float slope = clamp(length(grad3.xz) * 1.8, 0.0, 1.0);
-
-    float2 refr = grad * slope * 14.0 * m;
+    float2 refr = -grad * 0.055;
     half4 bg = content.eval(fragPx + refr);
-    float3 n = normalize(float3(grad.x * slope, 1.0, grad.y * slope));
-    float3 L = normalize(float3(-0.5, 0.7, -0.5));
-    float diff = clamp(dot(n, L) * 0.35 + 0.75, 0.0, 1.2);
-    float spec = pow(clamp(dot(reflect(-L, n), float3(0.0, 1.0, 0.0)), 0.0, 1.0), 42.0);
-    float rim = pow(1.0 - smoothstep(0.55, 1.0, m), 2.0) * m;
+
+    float3 n = normalize(float3(grad * 0.55, 1.0));
+    float3 L = normalize(float3(-0.45, 0.78, -0.45));
+    float diff = clamp(dot(n, L) * 0.30 + 0.82, 0.0, 1.15);
+    float spec = pow(clamp(dot(reflect(-L, n), float3(0.0, 1.0, 0.0)), 0.0, 1.0), 48.0);
+    float rim = (1.0 - smoothstep(0.75, 1.0, inside)) * inside;
 
     half3 col = bg.rgb * diff;
-    col = mix(col, bg.rgb * 1.12 + half3(0.05), clamp(rim * 0.6, 0.0, 0.55));
-    col += half3(spec * 0.85 * m);
+    col = mix(col, bg.rgb * 1.10 + half3(0.045), clamp(rim * 0.45, 0.0, 0.45));
+    col += half3(spec * 0.75 * inside);
 
     float st = streaks(uv, tt);
     col += half3(st);
