@@ -319,19 +319,17 @@ private class RainGLES32Renderer(private val context: Context) : GLSurfaceView.R
                 data[base + 7] = 0f
                 continue
             }
-            val rPx = when {
-                i < 48 -> Random.nextFloat() * 22f + 26f
-                i < 200 -> Random.nextFloat() * 12f + 13f
-                else -> Random.nextFloat() * 6f + 5.5f
-            }
-            val rM = rPx / pxPerMeter
+            val u = Random.nextFloat().coerceIn(1.0e-4f, 0.9999f)
+            val dM = ((-kotlin.math.ln(1.0 - u)) / 2.6e-3f).coerceIn(4.0e-4f, 5.2e-3f)
+            val rM = 0.5f * dM
+            val landed = i % 3 == 0
             data[base] = Random.nextFloat() * width
-            data[base + 1] = -20f - Random.nextFloat() * 1500f
-            data[base + 2] = 1.35f * rM * rM * rM
-            data[base + 3] = rPx
+            data[base + 1] = if (landed) Random.nextFloat() * height else -20f - Random.nextFloat() * 1500f
+            data[base + 2] = 0.5236f * dM * dM * dM
+            data[base + 3] = rM * pxPerMeter
             data[base + 4] = 0f
             data[base + 5] = 0f
-            data[base + 6] = 0f
+            data[base + 6] = if (landed) 1f else 0f
             data[base + 7] = 1f
         }
         val buf: FloatBuffer = ByteBuffer.allocateDirect(data.size * 4)
@@ -448,30 +446,44 @@ precision highp float;
 precision highp int;
 precision highp image2D;
 layout(local_size_x = 64) in;
-
 struct Drop {
     vec4 posVol;
     vec4 velState;
 };
-
 layout(std430, binding = 0) buffer DropBuffer {
     Drop drops[];
 };
-
 layout(r32i, binding = 2) uniform highp iimage2D splat;
-
 uniform vec2 uSimSize;
 uniform float uPxPerMeter;
 uniform float uDt;
 uniform float uTime;
 
-const float RHO_W = 998.0;
+const float RHO_W = 998.2;
+const float RHO_AIR = 1.204;
 const float SIGMA = 0.0728;
-const float MU_W  = 0.001002;
+const float MU_W = 1.002e-3;
+const float MU_AIR = 1.825e-5;
 const float G_ACC = 9.81;
-const float LAMBDA_T = 1.0e-8;
-const float COS_R_A = 0.49;
-const float EVAP_DIFF = 2.8e-10;
+const float LAMBDA_SLIP = 1.0e-8;
+
+const float THETA_EQ = 1.0471976;
+const float THETA_ADV = 1.3613568;
+const float THETA_REC = 0.7330383;
+const float R_WENZEL = 1.35;
+const float F_SOLID = 0.86;
+
+const float D_VAPOR = 2.62e-5;
+const float C_SAT = 0.017290;
+const float C_INF = 0.010374;
+const float EVAP_VENT = 0.15;
+const float D_GAMMA_DT = 1.5e-4;
+
+const float MP_LAMBDA = 2.6;
+const float D_MIN_M = 4.0e-4;
+const float D_MAX_M = 5.2e-3;
+
+const float PI_F = 3.14159265;
 
 float h21(vec2 p) {
     vec3 p3 = fract(vec3(p.xyx) * 0.1031);
@@ -486,27 +498,86 @@ float vnoise(vec2 p) {
     return mix(mix(h21(i), h21(i + vec2(1.0, 0.0)), u.x), mix(h21(i + vec2(0.0, 1.0)), h21(i + vec2(1.0, 1.0)), u.x), u.y);
 }
 
+float dustField(vec2 pPx) {
+    float n1 = vnoise(pPx * 0.05);
+    float n2 = vnoise(pPx * 0.017);
+    float n3 = vnoise(pPx * 0.27);
+    return clamp(0.45 * n1 + 0.35 * n2 + 0.20 * n3, 0.0, 1.0);
+}
+
+float mpDiameter(float u) {
+    float d = -(log(max(1.0e-6, 1.0 - u))) / MP_LAMBDA * 1.0e-3;
+    return clamp(d, D_MIN_M, D_MAX_M);
+}
+
+float terminalVel(float dM) {
+    float dMm = dM * 1000.0;
+    if (dMm < 1.0) {
+        return G_ACC * dM * dM * (RHO_W - RHO_AIR) / (18.0 * MU_AIR);
+    }
+    float cd = mix(1.10, 0.55, smoothstep(1.0, 4.0, dMm));
+    float v = sqrt(4.0 * RHO_W * G_ACC * dM / (3.0 * cd * RHO_AIR));
+    return min(v, 9.2);
+}
+
+float contactCosCb() {
+    float c = cos(THETA_EQ);
+    return clamp(R_WENZEL * F_SOLID * c - (1.0 - F_SOLID), -0.99, 0.99);
+}
+
+float furmidgePin(float aM, float dust) {
+    float cA = cos(THETA_ADV);
+    float cR = cos(THETA_REC);
+    float hysteresis = cR - cA;
+    float rough = mix(1.0, R_WENZEL, 0.55);
+    float f = 2.0 * aM * SIGMA * hysteresis * rough;
+    return f * (0.62 + 0.95 * dust);
+}
+
+float huhScriven(float aM, float vM, float thRad) {
+    float lnT = log(max(2.0, aM / LAMBDA_SLIP));
+    return 3.0 * MU_W * aM * abs(vM) * lnT / max(0.16, thRad);
+}
+
+float tannerVel(float aM, float thRad) {
+    float thEq = THETA_EQ;
+    float d2 = max(0.0, thRad * thRad - thEq * thEq);
+    float v = SIGMA * thRad * d2 / (3.0 * MU_W * max(2.0e-3, 2.0 * aM));
+    return clamp(v, 0.0, 0.35);
+}
+
+float stefanRate(float dM) {
+    float dc = C_SAT - C_INF;
+    return 2.0 * D_VAPOR * dc * EVAP_VENT / (RHO_W * max(1.0e-4, dM));
+}
+
 void main() {
     uint idx = gl_GlobalInvocationID.x;
     if (idx >= uint(drops.length())) return;
-
     bool isSat = idx >= 384u;
-
     Drop d = drops[idx];
     if (d.velState.w < 0.5) return;
 
     if (isSat) {
         float age = d.velState.z + uDt;
-        d.velState.y += 0.030 * uDt;
+        float aSat = d.posVol.w / uPxPerMeter;
+        float vSat = length(d.velState.xy);
+        float dragAcc = -6.0 * PI_F * MU_AIR * aSat * vSat / max(1.0e-12, RHO_W * 2.09 * aSat * aSat * aSat);
+        d.velState.y += (G_ACC + dragAcc * d.velState.y) * uDt;
+        d.velState.x += dragAcc * d.velState.x * 0.35 * uDt;
         d.posVol.xy += d.velState.xy * uPxPerMeter * uDt;
-        d.velState.xy *= exp(-4.0 * uDt);
-        d.velState.z = age;
-        if (age > 0.9 || length(d.velState.xy) < 0.0015) {
+        if (d.posVol.y < -40.0 || d.posVol.y > uSimSize.y + 40.0 || d.posVol.x < -40.0 || d.posVol.x > uSimSize.x + 40.0) {
             d.velState.w = 0.0;
-        } else {
+        }
+        d.velState.z = age;
+        if (age > mix(0.5, 1.4, h21(vec2(float(idx), 3.1)))) {
+            d.velState.w = 0.0;
+        }
+        if (d.velState.w > 0.5) {
             float aPxS = d.posVol.w;
             ivec2 cS = ivec2(d.posVol.xy);
-            int radS = int(ceil(aPxS));
+            int radS = int(clamp(aPxS * 1.05, 1.0, 20.0));
+            float dep = clamp(0.20 * exp(-age * 2.2), 0.0, 0.20);
             for (int oy = -radS; oy <= radS; oy++) {
                 for (int ox = -radS; ox <= radS; ox++) {
                     ivec2 pS = cS + ivec2(ox, oy);
@@ -514,7 +585,7 @@ void main() {
                     vec2 qS = vec2(float(ox), float(oy)) / max(1.0, aPxS);
                     float r2S = dot(qS, qS);
                     if (r2S < 1.0) {
-                        imageAtomicMax(splat, pS, int(sqrt(1.0 - r2S) * 0.20 * 1024.0));
+                        imageAtomicMax(splat, pS, int(sqrt(1.0 - r2S) * dep * 1024.0));
                     }
                 }
             }
@@ -524,95 +595,157 @@ void main() {
     }
 
     if (d.velState.z < 0.5) {
-        d.posVol.y += mix(1400.0, 2600.0, h21(vec2(float(idx), 1.7))) * uDt;
+        float seed = fract(sin(float(idx) * 12.9898) * 43758.5453);
+        float dM = mpDiameter(seed);
+        float vt = terminalVel(dM);
+        float vNow = d.velState.y / uPxPerMeter;
+        float mR = RHO_W * 0.5236 * dM * dM * dM;
+        float area = PI_F * 0.25 * dM * dM;
+        float cd = 0.55;
+        float fDrag = 0.5 * RHO_AIR * cd * area * vNow * vNow;
+        float acc = G_ACC - fDrag / max(1.0e-12, mR);
+        vNow = min(vt, vNow + acc * uDt);
+        d.velState.y = vNow * uPxPerMeter;
+        float windX = (vnoise(vec2(uTime * 0.21, 1.3)) - 0.5) * 0.9;
+        d.velState.x = mix(d.velState.x, windX, clamp(uDt * 1.5, 0.0, 1.0));
+        d.posVol.xy += d.velState.xy * uPxPerMeter * uDt;
         float landY = h21(vec2(float(idx) * 7.3, 2.9)) * uSimSize.y;
         if (d.posVol.y >= landY) {
             d.posVol.y = landY;
             d.velState.z = 1.0;
-            float base = h21(vec2(float(idx) * 4.4, 8.1));
+            float aImp = 0.5 * dM;
+            float we = RHO_W * vNow * vNow * dM / SIGMA;
+            float oh = MU_W / sqrt(max(1.0e-9, RHO_W * SIGMA * dM));
+            float splashN = clamp((we - 40.0) / 260.0, 0.0, 1.0);
+            float bSat = h21(vec2(float(idx) * 4.4, 8.1));
+            uint spawned = 0u;
+            uint maxSat = uint(min(6.0, 1.0 + splashN * 5.0));
             for (uint k = 384u; k < uint(drops.length()); k++) {
+                if (spawned >= maxSat) break;
                 if (drops[k].velState.w >= 0.5) continue;
-                float ang = base * 6.28318 + float(k) * 1.87;
-                float spd = mix(0.006, 0.018, h21(vec2(float(k) * 9.7, float(idx) * 1.3)));
-                float rSm = 2.0 + 1.6 * h21(vec2(float(k) * 5.1, 3.3));
-                float rMSm = rSm / uPxPerMeter;
-                drops[k].posVol = vec4(d.posVol.xy, 1.35 * rMSm * rMSm * rMSm, rSm);
-                drops[k].velState = vec4(cos(ang) * spd, abs(sin(ang)) * spd * 0.5 + 0.004, 0.0, 1.0);
-                if (k > 391u) break;
+                float ang = bSat * 6.28318 + float(k) * 2.399;
+                float spdM = sqrt(max(0.0, 2.0 * SIGMA * (1.0 - contactCosCb()) / (RHO_W * max(1.0e-5, dM)))) * 0.42;
+                spdM *= mix(0.55, 1.35, h21(vec2(float(k) * 9.7, float(idx) * 1.3)));
+                float rSatM = dM * mix(0.06, 0.16, h21(vec2(float(k) * 5.1, 3.3)));
+                float rSmPx = max(1.5, rSatM * uPxPerMeter);
+                drops[k].posVol = vec4(d.posVol.xy, 0.5236 * rSatM * rSatM * rSatM, rSmPx);
+                drops[k].velState = vec4(cos(ang) * spdM * uPxPerMeter, -abs(sin(ang)) * spdM * uPxPerMeter * 0.55, 0.0, 1.0);
+                spawned++;
             }
+            d.velState.xy = vec2(0.0);
+            d.velState.z = 1.0;
+            d.posVol.z = max(d.posVol.z, 0.5236 * dM * dM * dM * 0.55);
         }
         drops[idx] = d;
         return;
     }
 
-    float vol = d.posVol.z;
-    float rCurvM = pow(max(0.0, vol / 1.35), 1.0 / 3.0);
-    float aM = max(1e-6, rCurvM * 0.73);
-    float aPx = aM * uPxPerMeter;
-
+    float vol = max(1.0e-12, d.posVol.z);
+    float rEquiv = pow(vol * (3.0 / (4.0 * PI_F)), 1.0 / 3.0);
+    float dDiam = 2.0 * rEquiv;
+    float cosCb = contactCosCb();
+    float thRad = acos(clamp(cosCb, -0.99, 0.99));
+    float aBase = rEquiv * max(0.28, sin(thRad));
+    float dust = dustField(d.posVol.xy);
+    float aM = aBase * (1.0 + 0.22 * dust);
+    float aPx = max(1.0, aM * uPxPerMeter);
     float mass = RHO_W * vol;
     float fGrav = mass * G_ACC;
-    float fs = 1.0 + 0.30 * sin(d.posVol.x * 0.015) * cos(d.posVol.y * 0.015);
-    float fPin = 3.14159265 * aM * SIGMA * COS_R_A * fs;
+    float fPin = furmidgePin(aM, dust);
+    vec2 vVec = d.velState.xy / uPxPerMeter;
+    float vMag = length(vVec);
+    float fViscMag = huhScriven(aM, vMag, thRad);
+    float vTanner = tannerVel(aM, thRad);
 
-    float uSpeed = length(d.velState.xy);
-    float lnTerm = log(max(2.0, aM / LAMBDA_T));
-    float visc = 3.6 * MU_W * aM * lnTerm * 85.0;
-
-    if (fGrav > fPin) {
-        float fNetY = (fGrav - fPin * 0.90) - visc * d.velState.y;
-        float dustFBM = vnoise(d.posVol.xy * 0.05) * 0.6 + vnoise(d.posVol.xy * 0.017) * 0.4;
-        float slipThreshold = 0.42 + 0.36 * dustFBM;
-        if (d.velState.y / 0.045 < slipThreshold) {
-            d.velState.y *= (0.90 + 0.16 * dustFBM);
+    float drive = fGrav - fPin;
+    if (drive > 0.0) {
+        vec2 dirDown = vec2(0.0, 1.0);
+        float target = min(vTanner, sqrt(max(0.0, 2.0 * drive / max(1.0e-12, mass)) * 2.0e-3));
+        float slipBand = mix(0.35, 0.85, dust);
+        float vAlong = vVec.y;
+        if (vAlong < target * slipBand) {
+            float stickDecay = 1.0 - clamp(uDt * mix(3.0, 14.0, dust), 0.0, 1.0);
+            vVec.y *= stickDecay;
         } else {
-            d.velState.y = clamp(d.velState.y + (fNetY / max(mass, 1e-9)) * uDt, 0.003, 0.045);
+            float accNet = (drive - fViscMag) / max(1.0e-12, mass);
+            vVec.y = clamp(vVec.y + accNet * uDt, 0.0, max(0.01, target * 1.35));
         }
         float defect = vnoise(d.posVol.xy * 0.031 + 7.7) - 0.5;
-        float pinDeflect = defect * SIGMA * aM * 3.4;
+        float pinDeflect = defect * SIGMA * aM * 3.4 / max(1.0e-12, mass);
         float gradX = sin(d.posVol.x * 0.015 - 0.15) - sin(d.posVol.x * 0.015 + 0.15);
-        float fNetX = gradX * SIGMA * aM * 2.2 + pinDeflect - visc * 1.6 * d.velState.x;
-        d.velState.x = clamp(d.velState.x + (fNetX / max(mass, 1e-9)) * uDt, -0.014, 0.014);
+        float marangoni = D_GAMMA_DT * 0.6 * aM * aM * 2.0 * PI_F / max(1.0e-12, mass);
+        float fNetX = gradX * SIGMA * aM * 2.2 / max(1.0e-12, mass) + pinDeflect * 0.35 + marangoni;
+        vVec.x = clamp(vVec.x + fNetX * uDt, -0.06, 0.06);
+        vVec.x *= 1.0 - clamp(uDt * 2.0, 0.0, 1.0);
+        d.velState.xy = vVec * uPxPerMeter;
+        float stretch = clamp(1.0 + vVec.y * 6.5, 1.0, 1.75);
+        d.velState.z = stretch;
     } else {
-        d.velState.xy *= 0.5;
+        float relax = clamp(uDt * mix(6.0, 22.0, dust), 0.0, 1.0);
+        d.velState.xy *= (1.0 - relax);
+        d.velState.z = mix(d.velState.z, 1.0, relax);
     }
 
-    float dx = d.velState.x * uPxPerMeter * uDt;
-    float dy = d.velState.y * uPxPerMeter * uDt;
-    d.posVol.x = clamp(d.posVol.x + dx, aPx, uSimSize.x - aPx);
-    d.posVol.y += dy;
+    float dxPx = d.velState.x * uDt;
+    float dyPx = d.velState.y * uDt;
+    d.posVol.x = clamp(d.posVol.x + dxPx, aPx, max(aPx + 1.0, uSimSize.x - aPx));
+    d.posVol.y += dyPx;
     d.posVol.w = aPx;
-    d.velState.z = (uSpeed > 0.002) ? clamp(1.28 + d.velState.y * 11.5, 1.30, 1.60) : 1.0;
 
-    if (uSpeed > 0.002) {
-        float ca = (MU_W * uSpeed) / SIGMA;
-        float hFilm = 0.945 * aM * pow(ca, 2.0 / 3.0);
-        float dsM = length(vec2(dx, dy)) / uPxPerMeter;
-        vol = max(0.0, vol - 2.0 * aM * (hFilm * 26.0) * dsM);
+    float speedM = length(d.velState.xy) / uPxPerMeter;
+    if (speedM > 0.0008) {
+        float capNum = MU_W * speedM;
+        float caNum = capNum / SIGMA;
+        float hFilm = 0.945 * aM * pow(max(1.0e-12, caNum), 0.6667);
+        float dsM = length(vec2(dxPx, dyPx)) / uPxPerMeter;
+        float llD = 2.0 * aM * hFilm * 26.0 * dsM;
+        vol = max(1.0e-12, vol - llD);
     }
-    vol = max(0.0, vol - 6.28318 * aM * EVAP_DIFF * uDt);
-    d.posVol.z = vol;
 
-    for (uint j = 0u; j < uint(drops.length()); j++) {
+    float evap = PI_F * dDiam * dDiam * 0.5 * stefanRate(dDiam) * uDt;
+    vol = max(1.0e-12, vol - evap);
+
+    uint nCount = uint(drops.length());
+    for (uint j = 0u; j < nCount; j++) {
         if (j == idx) continue;
         Drop other = drops[j];
         if (other.velState.w < 0.5) continue;
-        float dist = length(d.posVol.xy - other.posVol.xy);
-        if (dist < (aPx + other.posVol.w) * 0.85 && idx < j) {
-            d.posVol.z += other.posVol.z;
-            d.velState.y = max(d.velState.y, other.velState.y) * 1.45 + 0.008;
-            drops[j].velState.w = 0.0;
+        if (other.velState.z < 0.5) continue;
+        float distPx = length(d.posVol.xy - other.posVol.xy);
+        float sumPx = aPx + other.posVol.w;
+        if (distPx < sumPx * 0.92) {
+            if (idx < j) {
+                float v1 = vol;
+                float v2 = max(1.0e-12, other.posVol.z);
+                float m1 = RHO_W * v1;
+                float m2 = RHO_W * v2;
+                float vNew = v1 + v2;
+                float rNew = pow(vNew * (3.0 / (4.0 * PI_F)), 1.0 / 3.0);
+                float aNew = rNew * max(0.28, sin(thRad));
+                vec2 p1 = d.velState.xy;
+                vec2 p2 = other.velState.xy;
+                vec2 vMom = (p1 * m1 + p2 * m2) / max(1.0e-12, m1 + m2);
+                float released = SIGMA * 4.0 * PI_F * (pow(max(1.0e-12, v1) * 0.75 / PI_F, 0.6667) + pow(max(1.0e-12, v2) * 0.75 / PI_F, 0.6667) - pow(vNew * 0.75 / PI_F, 0.6667));
+                float kick = clamp(released / max(1.0e-12, mass * 40.0), 0.0, 0.08) * uPxPerMeter;
+                d.posVol.z = vNew;
+                d.velState.y = max(vMom.y, 0.0) + kick * 0.6;
+                d.velState.x = vMom.x + (h21(vec2(float(j), uTime)) - 0.5) * kick;
+                d.posVol.w = aNew * uPxPerMeter;
+                drops[j].velState.w = 0.0;
+            }
         }
     }
 
-    int rad = int(clamp(aPx * 1.15, 2.0, 56.0));
+    float aPxR = d.posVol.w;
+    int rad = int(clamp(aPxR * 1.12, 2.0, 56.0));
     ivec2 c = ivec2(d.posVol.xy);
-    float capScale = (uSpeed > 0.002) ? clamp(aPx / 64.0, 0.16, 0.30) : clamp(aPx / 48.0, 0.18, 0.55);
+    float stretchZ = max(1.0, d.velState.z);
+    float capScale = (speedM > 0.0008) ? clamp(aPxR / 64.0, 0.14, 0.30) : clamp(aPxR / 48.0, 0.16, 0.55);
     for (int oy = -rad; oy <= rad; oy++) {
         for (int ox = -rad; ox <= rad; ox++) {
             ivec2 p = c + ivec2(ox, oy);
             if (p.x < 0 || p.y < 0 || p.x >= int(uSimSize.x) || p.y >= int(uSimSize.y)) continue;
-            vec2 q = vec2(float(ox), float(oy) / d.velState.z) / max(1.0, aPx);
+            vec2 q = vec2(float(ox), float(oy) / stretchZ) / max(1.0, aPxR);
             float r2 = dot(q, q);
             if (r2 < 1.0) {
                 float hCap = sqrt(1.0 - r2) * capScale;
@@ -621,16 +754,18 @@ void main() {
         }
     }
 
-    if (d.posVol.y - aPx > uSimSize.y || aPx < 5.0) {
+    if (d.posVol.y - aPxR > uSimSize.y || aPxR < 3.5 || d.posVol.z < 1.0e-11) {
         float fr1 = fract(sin(float(idx) * 12.9898 + uTime * 78.233) * 43758.5453);
+        float fr2 = fract(sin(float(idx) * 93.989 + uTime * 47.233) * 24634.6345);
         d.posVol.x = fr1 * uSimSize.x;
-        d.posVol.y = -20.0 - fract(sin(float(idx) * 93.989 + uTime * 47.233) * 24634.6345) * 300.0;
-        d.velState.y = 0.0;
-        d.velState.x = 0.0;
+        d.posVol.y = -20.0 - fr2 * 420.0;
+        d.velState.xy = vec2(0.0);
         d.velState.z = 0.0;
-        float rNewPx = mix(9.0, 20.0, fract(sin(float(idx) * 45.164 + uTime * 12.989) * 12345.678));
-        float rNew = rNewPx / uPxPerMeter;
-        d.posVol.z = 1.35 * rNew * rNew * rNew;
+        float seedD = fract(sin(float(idx) * 45.164 + uTime * 12.989) * 12345.678);
+        float dNew = mpDiameter(seedD);
+        d.posVol.z = 0.5236 * dNew * dNew * dNew;
+        d.posVol.w = max(1.0, 0.5 * dNew * uPxPerMeter);
+        d.velState.w = 1.0;
     }
     drops[idx] = d;
 }
@@ -665,10 +800,10 @@ void main() {
     float vel = src.b + lap * 16.0 * uDt;
     vel *= exp(-3.6 * uDt);
     float wave = vel * uDt;
-
     float phys = max(src.r, splatH);
     float physWet = max(src.g, splatH > 0.02 ? 1.0 : 0.0);
-    float h = max(0.0, phys + wave - 0.065 * uDt);
+    float evapK = 0.030 * (1.0 + 1.8 * exp(-phys * 12.0));
+    float h = max(0.0, phys + wave - evapK * uDt);
 
     imageStore(uHeightOut, p, vec4(h, physWet * exp(-0.075 * uDt), vel, 1.0));
 }
