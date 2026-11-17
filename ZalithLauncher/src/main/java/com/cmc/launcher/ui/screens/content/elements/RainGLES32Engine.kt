@@ -415,6 +415,9 @@ private class RainGLES32Renderer(private val context: Context) : GLSurfaceView.R
 }
 
 private const val DROP_PHYSICS_CS = """#version 320 es
+precision highp float;
+precision highp int;
+precision highp image2D;
 layout(local_size_x = 64) in;
 
 struct Drop {
@@ -426,7 +429,7 @@ layout(std430, binding = 0) buffer DropBuffer {
     Drop drops[];
 };
 
-layout(rgba16f, binding = 1) uniform image2D uHeightField;
+layout(rgba16f, binding = 1) uniform highp image2D uHeightField;
 
 uniform vec2 uSimSize;
 uniform float uPxPerMeter;
@@ -535,10 +538,13 @@ void main() {
 """
 
 private const val HEIGHTFIELD_PDE_CS = """#version 320 es
+precision highp float;
+precision highp int;
+precision highp image2D;
 layout(local_size_x = 16, local_size_y = 16) in;
 
-layout(rgba16f, binding = 0) uniform readonly image2D uHeightIn;
-layout(rgba16f, binding = 1) uniform image2D uHeightOut;
+layout(rgba16f, binding = 0) uniform readonly highp image2D uHeightIn;
+layout(rgba16f, binding = 1) uniform highp image2D uHeightOut;
 
 uniform float uDt;
 
@@ -569,8 +575,11 @@ void main() {
 """
 
 private const val CLEAR_CAUSTICS_CS = """#version 320 es
+precision highp float;
+precision highp int;
+precision highp image2D;
 layout(local_size_x = 16, local_size_y = 16) in;
-layout(r32i, binding = 0) uniform writeonly iimage2D uCausticBuf;
+layout(r32i, binding = 0) uniform writeonly highp iimage2D uCausticBuf;
 void main() {
     ivec2 p = ivec2(gl_GlobalInvocationID.xy);
     ivec2 sz = imageSize(uCausticBuf);
@@ -580,10 +589,13 @@ void main() {
 """
 
 private const val CAUSTICS_PHOTON_CS = """#version 320 es
+precision highp float;
+precision highp int;
+precision highp image2D;
 layout(local_size_x = 16, local_size_y = 16) in;
 
-layout(rgba16f, binding = 0) uniform readonly image2D uHeightIn;
-layout(r32i, binding = 1) uniform iimage2D uCausticBuf;
+layout(rgba16f, binding = 0) uniform readonly highp image2D uHeightIn;
+layout(r32i, binding = 1) uniform highp iimage2D uCausticBuf;
 
 void splat(ivec2 sz, vec2 pos, int shift) {
     ivec2 px = ivec2(clamp(pos, vec2(0.0), vec2(sz - 1)));
