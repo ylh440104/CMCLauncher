@@ -550,6 +550,12 @@ float tannerVel(float aM, float thRad) {
     return clamp(v, 0.0, 0.35);
 }
 
+float thRadGlobal() {
+    float c = cos(THETA_EQ);
+    float cb = clamp(R_WENZEL * F_SOLID * c - (1.0 - F_SOLID), -0.99, 0.99);
+    return acos(clamp(cb, -0.99, 0.99));
+}
+
 float stefanRate(float dM) {
     float dc = C_SAT - C_INF;
     return 2.0 * D_VAPOR * dc * EVAP_VENT / (RHO_W * max(1.0e-4, dM));
@@ -640,7 +646,31 @@ void main() {
             }
             d.velState.xy = vec2(0.0);
             d.velState.z = 1.0;
-            d.posVol.z = max(d.posVol.z, 0.5236 * dM * dM * dM * 0.55);
+            float volNew = 0.5236 * dM * dM * dM * 0.55;
+            bool absorbed = false;
+            for (uint q = 0u; q < uint(drops.length()); q++) {
+                if (q == idx) continue;
+                if (drops[q].velState.w < 0.5) continue;
+                if (drops[q].velState.z < 0.5) continue;
+                float dq = length(drops[q].posVol.xy - d.posVol.xy);
+                if (dq < (drops[q].posVol.w + 0.5 * dM * uPxPerMeter) * 1.05) {
+                    drops[q].posVol.z += volNew;
+                    float rq = pow(max(1.0e-12, drops[q].posVol.z) * 0.2387, 0.3333);
+                    float aq = rq * max(0.28, sin(thRadGlobal()));
+                    drops[q].posVol.w = max(1.0, aq * uPxPerMeter);
+                    drops[q].velState.z = 1.0;
+                    if (h21(vec2(float(q), uTime * 0.37)) > 0.55) {
+                        drops[q].velState.y = max(drops[q].velState.y, 0.004 * uPxPerMeter);
+                    }
+                    absorbed = true;
+                    d.velState.w = 0.0;
+                    d.posVol.z = 0.0;
+                    break;
+                }
+            }
+            if (!absorbed) {
+                d.posVol.z = volNew;
+            }
         }
         drops[idx] = d;
         return;
@@ -762,6 +792,23 @@ void main() {
         }
     }
 
+    if (speedM > 0.0008) {
+        float tailLen = clamp(speedM * uPxPerMeter * 0.16, 2.0, 28.0);
+        int tLen = int(tailLen);
+        for (int ty = 1; ty <= tLen; ty++) {
+            float fall = 1.0 - float(ty) / tailLen;
+            int yy = c.y + ty;
+            if (yy < 0 || yy >= int(uSimSize.y)) break;
+            for (int ox = -2; ox <= 2; ox++) {
+                int xx = c.x + ox;
+                if (xx < 0 || xx >= int(uSimSize.x)) continue;
+                float wgt = exp(-abs(float(ox)) / 1.3) * fall;
+                int dT = int(clamp(wgt * 0.30 * 1023.0, 1.0, 1023.0));
+                imageAtomicMax(splat, ivec2(xx, yy), (dT << 12) | int(idx & 0xFFFu));
+            }
+        }
+    }
+
     if (d.posVol.y - aPxR > uSimSize.y || aPxR < 3.5 || d.posVol.z < 1.0e-11) {
         float fr1 = fract(sin(float(idx) * 12.9898 + uTime * 78.233) * 43758.5453);
         float fr2 = fract(sin(float(idx) * 93.989 + uTime * 47.233) * 24634.6345);
@@ -810,7 +857,7 @@ void main() {
     float wave = vel * uDt;
     float phys = max(src.r, splatH);
     float physWet = max(src.g, splatH > 0.02 ? 1.0 : 0.0);
-    float evapK = 0.030 * (1.0 + 1.8 * exp(-phys * 12.0));
+    float evapK = 0.010 * (1.0 + 1.2 * exp(-phys * 10.0));
     float h = max(0.0, phys + wave - evapK * uDt);
 
     imageStore(uHeightOut, p, vec4(h, physWet * exp(-0.075 * uDt), vel, 1.0));
@@ -896,28 +943,143 @@ void main() {
 }
 """
 
+private const val DROPSHADE_CS = """#version 320 es
+precision highp float;
+precision highp int;
+precision highp image2D;
+layout(local_size_x = 16, local_size_y = 16) in;
+struct Drop {
+    vec4 posVol;
+    vec4 velState;
+};
+layout(std430, binding = 0) buffer DropBuffer {
+    Drop drops[];
+};
+layout(r32i, binding = 2) uniform readonly highp iimage2D uSplat;
+layout(rgba16f, binding = 3) uniform writeonly highp image2D uOut;
+uniform vec2 uSimSize;
+uniform float uUiPlaneZ;
+
+float exitT(vec3 ro, vec3 rd, vec3 cen, vec3 rad) {
+    vec3 oc = (ro - cen) / rad;
+    vec3 dv = rd / rad;
+    float a = dot(dv, dv);
+    float b = 2.0 * dot(oc, dv);
+    float c = dot(oc, oc) - 1.0;
+    float disc = b * b - 4.0 * a * c;
+    if (disc < 0.0) return -1.0;
+    float sq = sqrt(disc);
+    float t1 = (-b + sq) / (2.0 * a);
+    if (t1 > 0.0001) return t1;
+    float t0 = (-b - sq) / (2.0 * a);
+    if (t0 > 0.0001) return t0;
+    return -1.0;
+}
+
+vec3 surfNormal(vec3 p, vec3 cen, vec3 rad) {
+    vec3 q = (p - cen) / (rad * rad);
+    float l = length(q);
+    if (l < 1.0e-6) return vec3(0.0, 0.0, 1.0);
+    return q / l;
+}
+
+vec3 traceLens(vec2 px, vec3 cen, vec3 rad, float uiPlaneZ, float eta, out float tir) {
+    tir = 0.0;
+    vec2 q = (px - cen.xy) / rad.xy;
+    float s = 1.0 - dot(q, q);
+    if (s <= 0.0) return vec3(-1.0e6);
+    vec3 pFront = vec3(px, cen.z + rad.z * sqrt(s));
+    vec3 nF = surfNormal(pFront, cen, rad);
+    vec3 rd = vec3(0.0, 0.0, -1.0);
+    vec3 dIn = refract(rd, nF, 1.0 / eta);
+    if (dot(dIn, dIn) < 1.0e-6) return vec3(-1.0e6);
+    float tBack = exitT(pFront, dIn, cen, rad);
+    if (tBack < 0.0) return vec3(-1.0e6);
+    vec3 p = pFront + dIn * tBack;
+    vec3 n = surfNormal(p, cen, rad);
+    for (int i = 0; i < 3; i++) {
+        vec3 dOut = refract(dIn, n, eta);
+        if (dot(dOut, dOut) < 1.0e-6) {
+            tir += 1.0;
+            dIn = reflect(dIn, n);
+            float tNext = exitT(p, dIn, cen, rad);
+            if (tNext < 0.0) return vec3(-1.0e6);
+            p = p + dIn * tNext;
+            n = surfNormal(p, cen, rad);
+            continue;
+        }
+        vec3 hit = p + dOut * (uiPlaneZ / max(0.02, dOut.z));
+        return hit;
+    }
+    return vec3(-1.0e6);
+}
+
+void main() {
+    ivec2 p = ivec2(gl_GlobalInvocationID.xy);
+    ivec2 sz = imageSize(uOut);
+    if (p.x >= sz.x || p.y >= sz.y) return;
+    vec4 outv = vec4(0.0);
+    int packed = imageLoad(uSplat, p).r;
+    if (packed != 0) {
+        int idx = packed & 0xFFF;
+        if (idx < int(drops.length())) {
+            vec4 pv = drops[idx].posVol;
+            vec4 vs = drops[idx].velState;
+            if (vs.w > 0.5 && pv.z > 0.0) {
+                float aPx = max(2.0, pv.w);
+                float stretch = clamp(vs.z, 1.0, 1.85);
+                float sizeF = clamp(aPx / 40.0, 0.0, 1.0);
+                float capH = aPx * mix(0.52, 0.36, sizeF);
+                vec3 cen = vec3(pv.xy, -capH);
+                vec3 rad = vec3(aPx, aPx * mix(1.0, 1.42, clamp((stretch - 1.0) / 0.8, 0.0, 1.0)), capH);
+                vec2 qq = (vec2(float(p.x), float(p.y)) - pv.xy) / rad.xy;
+                float sIn = 1.0 - dot(qq, qq);
+                if (sIn > 0.0) {
+                    vec2 px = vec2(float(p.x), float(p.y));
+                    float tirR;
+                    float tirG;
+                    float tirB;
+                    vec3 hR = traceLens(px, cen, rad, uUiPlaneZ, 1.3268, tirR);
+                    vec3 hG = traceLens(px, cen, rad, uUiPlaneZ, 1.3330, tirG);
+                    vec3 hB = traceLens(px, cen, rad, uUiPlaneZ, 1.3402, tirB);
+                    float cov = smoothstep(0.0, 0.30, sIn);
+                    if (hG.x < -1.0e5) {
+                        outv = vec4(0.0, 0.0, cov * 0.30, 2.0);
+                    } else {
+                        vec2 offG = hG.xy - px;
+                        vec2 offR = hR.xy - px;
+                        vec2 offB = hB.xy - px;
+                        float tirAvg = (tirR + tirG + tirB) * 0.3333;
+                        outv = vec4(offG, cov, tirAvg);
+                        if (abs(offR.x - offG.x) > 0.02 || abs(offB.x - offG.x) > 0.02) {
+                            outv.x = mix(offG.x, offR.x, 0.35);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    imageStore(uOut, p, outv);
+}
+"""
+
 private const val FINAL_OPTICS_FS = """#version 320 es
 #extension GL_OES_EGL_image_external_essl3 : require
 precision highp float;
 precision highp int;
 precision highp sampler2D;
-precision highp isampler2D;
 precision highp image2D;
 precision highp samplerExternalOES;
 in vec2 vUv;
 out vec4 fragColor;
 uniform samplerExternalOES uUiTex;
 uniform sampler2D uHeightTex;
+uniform sampler2D uDropOff;
 uniform mat4 uStMatrix;
 layout(r32i, binding = 2) uniform readonly highp iimage2D uCausticBuf;
-uniform highp isampler2D uSplatTex;
-layout(std430, binding = 3) buffer DropDataBuf {
-    vec4 dropData[];
-};
 uniform vec2 uResolution;
 uniform float uGlassThicknessPx;
 uniform float uTime;
-uniform float uUiPlaneZ;
 
 vec2 uiUv(vec2 uv) {
     return clamp((uStMatrix * vec4(uv, 0.0, 1.0)).xy, vec2(0.001), vec2(0.999));
@@ -964,6 +1126,15 @@ float D_GGX(float NdotH, float roughness) {
     return a2 / (3.14159265 * d * d);
 }
 
+vec3 thinFilmInterference(float dNm, float cosTheta) {
+    vec3 lambda = vec3(680.0, 545.0, 445.0);
+    float nFilm = 1.333;
+    float opl = 2.0 * nFilm * dNm * max(0.25, cosTheta);
+    vec3 phase = 6.2831853 * opl / lambda;
+    vec3 airy = 0.5 + 0.5 * cos(phase);
+    return airy;
+}
+
 vec3 sampleRainyEnv(vec3 R) {
     float up = clamp(-R.y * 0.5 + 0.5, 0.0, 1.0);
     vec3 sky = mix(vec3(0.20, 0.24, 0.30), vec3(0.75, 0.82, 0.89), smoothstep(0.18, 0.52, up));
@@ -996,112 +1167,6 @@ vec3 sampleSmoothCaustics(ivec2 px) {
     return sum;
 }
 
-float exitT(vec3 ro, vec3 rd, vec3 cen, vec3 rad) {
-    vec3 oc = (ro - cen) / rad;
-    vec3 dv = rd / rad;
-    float a = dot(dv, dv);
-    float b = 2.0 * dot(oc, dv);
-    float c = dot(oc, oc) - 1.0;
-    float disc = b * b - 4.0 * a * c;
-    if (disc < 0.0) return -1.0;
-    float sq = sqrt(disc);
-    float t1 = (-b + sq) / (2.0 * a);
-    if (t1 > 0.0001) return t1;
-    float t0 = (-b - sq) / (2.0 * a);
-    if (t0 > 0.0001) return t0;
-    return -1.0;
-}
-
-vec3 lensSurfaceNormal(vec3 p, vec3 cen, vec3 rad) {
-    vec3 q = (p - cen) / (rad * rad);
-    float l = length(q);
-    if (l < 1.0e-6) return vec3(0.0, 0.0, -1.0);
-    return q / l;
-}
-
-vec3 traceLens(vec2 px, vec3 cen, vec3 rad, float uiPlaneZ, float eta, out float tirCount) {
-    tirCount = 0.0;
-    vec2 q = (px - cen.xy) / rad.xy;
-    float s = 1.0 - dot(q, q);
-    if (s <= 0.0) return vec3(-1.0e6);
-    float sq = sqrt(s);
-    vec3 pFront = vec3(px, cen.z - rad.z * sq);
-    vec3 nF = lensSurfaceNormal(pFront, cen, rad);
-    vec3 rd = vec3(0.0, 0.0, 1.0);
-    vec3 dIn = refract(rd, nF, 1.0 / eta);
-    if (dot(dIn, dIn) < 1.0e-6) return vec3(-1.0e6);
-    float tBack = exitT(pFront, dIn, cen, rad);
-    if (tBack < 0.0) return vec3(-1.0e6);
-    vec3 p = pFront + dIn * tBack;
-    vec3 n = lensSurfaceNormal(p, cen, rad);
-    for (int i = 0; i < 3; i++) {
-        vec3 dOut = refract(dIn, n, eta);
-        if (dot(dOut, dOut) < 1.0e-6) {
-            tirCount += 1.0;
-            dIn = reflect(dIn, n);
-            float tNext = exitT(p, dIn, cen, rad);
-            if (tNext < 0.0) return vec3(-1.0e6);
-            p = p + dIn * tNext;
-            n = lensSurfaceNormal(p, cen, rad);
-            continue;
-        }
-        float tPlane = (uiPlaneZ - p.z) / max(0.02, dOut.z);
-        vec3 hit = p + dOut * tPlane;
-        return hit;
-    }
-    return vec3(-1.0e6);
-}
-
-vec3 dropletColor(vec2 px, vec4 pv, vec4 vs, float uiPlaneZ, out float coverage) {
-    coverage = 0.0;
-    float aPx = max(2.0, pv.w);
-    float stretch = clamp(vs.z, 1.0, 1.85);
-    float sizeF = clamp(aPx / 40.0, 0.0, 1.0);
-    float capH = aPx * mix(0.52, 0.36, sizeF);
-    float rx = aPx;
-    float ry = aPx * mix(1.0, 1.42, clamp((stretch - 1.0) / 0.8, 0.0, 1.0));
-    float rz = capH;
-    vec3 cen = vec3(pv.xy, -capH);
-    vec3 rad = vec3(rx, ry, rz);
-    vec2 qq = (px - pv.xy) / vec2(rx, ry);
-    float sIn = 1.0 - dot(qq, qq);
-    if (sIn <= 0.0) return vec3(0.0);
-    coverage = smoothstep(0.0, 0.30, sIn);
-    float tirR;
-    float tirG;
-    float tirB;
-    vec3 hitR = traceLens(px, cen, rad, uiPlaneZ, 1.3306, tirR);
-    vec3 hitG = traceLens(px, cen, rad, uiPlaneZ, 1.3330, tirG);
-    vec3 hitB = traceLens(px, cen, rad, uiPlaneZ, 1.3354, tirB);
-    vec3 col;
-    if (hitG.x < -1.0e5) {
-        vec3 nEdge = lensSurfaceNormal(vec3(px, cen.z - rz * 0.02), cen, rad);
-        return sampleRainyEnv(reflect(vec3(0.0, 0.0, 1.0), nEdge));
-    }
-    vec2 uvR = clamp(hitR.xy / uResolution, vec2(0.0), vec2(1.0));
-    vec2 uvG = clamp(hitG.xy / uResolution, vec2(0.0), vec2(1.0));
-    vec2 uvB = clamp(hitB.xy / uResolution, vec2(0.0), vec2(1.0));
-    col.r = texture(uUiTex, uiUv(uvR)).r;
-    col.g = texture(uUiTex, uiUv(uvG)).g;
-    col.b = texture(uUiTex, uiUv(uvB)).b;
-    vec3 nTop = lensSurfaceNormal(vec3(px.x, px.y, cen.z - rz * sqrt(max(0.0, sIn))), cen, rad);
-    vec3 V = vec3(0.0, 0.0, 1.0);
-    float cosI = clamp(dot(-V, nTop), 0.0, 1.0);
-    float fres = 0.0204 + 0.9796 * pow(1.0 - cosI, 5.0);
-    vec3 envCol = sampleRainyEnv(reflect(-V, nTop));
-    col = mix(col, envCol, clamp(fres * 0.80, 0.0, 0.16));
-    float tirAvg = (tirR + tirG + tirB) * 0.3333;
-    if (tirAvg > 0.5) {
-        col = mix(col, sampleRainyEnv(nTop) * 0.92, clamp(0.10 + 0.14 * tirAvg, 0.0, 0.26));
-    }
-    vec3 L = normalize(vec3(-0.62, 0.68, 0.39));
-    float spec = D_GGX(max(0.0, dot(nTop, normalize(L + V))), 0.04) * 0.0075;
-    col += vec3(0.92, 0.95, 1.0) * min(0.30, spec);
-    float rim = smoothstep(0.32, 0.01, sIn);
-    col = mix(col, col * 0.88, rim * 0.60);
-    return col;
-}
-
 void main() {
     vec2 fragPx = vUv * uResolution;
     vec4 base = texture(uUiTex, uiUv(vUv));
@@ -1111,56 +1176,44 @@ void main() {
     vec3 rgbCaustic = sampleSmoothCaustics(pxCoord);
     col *= (vec3(1.0) + rgbCaustic * 0.22);
 
-    int packedDrop = texelFetch(uSplatTex, pxCoord, 0).r;
-    if (packedDrop != 0) {
-        int dIdx = packedDrop & 0xFFF;
-        int maxIdx = int(dropData.length() / 2) - 1;
-        if (dIdx <= maxIdx) {
-            vec4 pv = dropData[dIdx * 2];
-            vec4 vs = dropData[dIdx * 2 + 1];
-            if (vs.w > 0.5 && pv.z > 0.0) {
-                float cov;
-                vec3 dCol = dropletColor(fragPx, pv, vs, uUiPlaneZ, cov);
-                col = mix(col, dCol, cov);
-            }
+    vec4 dropInfo = texelFetch(uDropOff, pxCoord, 0);
+    if (dropInfo.z > 0.001) {
+        vec2 off = dropInfo.xy;
+        float cov = clamp(dropInfo.z, 0.0, 1.0);
+        float tir = dropInfo.w;
+        vec2 dirN = normalize(off + vec2(1.0e-5, 1.0e-5));
+        vec2 basePx = fragPx + off;
+        vec3 rc;
+        rc.r = texture(uUiTex, uiUv(clamp((basePx + dirN * 1.3) / uResolution, vec2(0.0), vec2(1.0)))).r;
+        rc.g = texture(uUiTex, uiUv(clamp(basePx / uResolution, vec2(0.0), vec2(1.0)))).g;
+        rc.b = texture(uUiTex, uiUv(clamp((basePx - dirN * 1.3) / uResolution, vec2(0.0), vec2(1.0)))).b;
+        if (tir > 1.5) {
+            rc = mix(rc, sampleRainyEnv(vec3(dirN * 0.55, 1.0)) * 0.90, 0.60);
+        } else if (tir > 0.45) {
+            rc = mix(rc, sampleRainyEnv(vec3(dirN * 0.35, 1.0)) * 0.94, 0.22);
         }
+        col = mix(col, rc, cov);
     }
 
-    for (int layer = 0; layer < 5; layer++) {
-        float fl = float(layer);
-        float t5 = fl * 0.25;
-        float spacing = mix(165.0, 52.0, t5);
-        float speedY = mix(700.0, 2100.0, t5);
-        float lenY = mix(38.0, 155.0, t5);
-        float slant = mix(0.04, 0.15, t5);
-        float bright = mix(0.055, 0.20, t5);
-        float wpx = mix(0.50, 1.15, t5);
-        float cellX = floor(fragPx.x / spacing);
-        for (int ox = -1; ox <= 1; ox++) {
-            float cx = cellX + float(ox);
-            float rnd = hash12(vec2(cx, fl * 37.0 + 7.0));
-            float rnd2 = hash12(vec2(cx, fl * 91.0 + 3.0));
-            float xPos = (cx + 0.15 + 0.70 * rnd) * spacing;
-            float phase = fract(uTime * speedY / (uResolution.y + lenY * 3.0) + rnd2);
-            float yPos = -lenY + phase * (uResolution.y + lenY * 3.0);
-            float dyr = fragPx.y - yPos;
-            if (dyr > -lenY && dyr < lenY * 0.20) {
-                float dxr = fragPx.x - (xPos + dyr * slant);
-                float thick = mix(0.75, 2.1, t5) * mix(0.6, 1.4, rnd);
-                float line = exp(-abs(dxr) / max(wpx, thick * 0.5));
-                float along = clamp((dyr + lenY) / lenY, 0.0, 1.0);
-                float fade = smoothstep(0.0, 0.26, along) * smoothstep(1.0, 0.62, along);
-                float head = smoothstep(0.10, 0.0, along) * 0.9;
-                col += vec3(0.58, 0.65, 0.76) * line * fade * (bright + head * 0.08);
+    for (int i = 0; i < 6; i++) {
+        float seed = float(i) * 19.37;
+        float speed = mix(1.0, 2.0, hash12(vec2(seed, 1.0)));
+        float tCycle = fract(uTime * speed + hash12(vec2(seed, 2.0)));
+        float xPos = hash12(vec2(floor(uTime * speed + hash12(vec2(seed, 2.0))), seed)) * uResolution.x;
+        float yTip = tCycle * (uResolution.y + 150.0);
+        float len = mix(60.0, 130.0, hash12(vec2(seed, 3.0)));
+        float dx = abs(fragPx.x - xPos);
+        if (dx < 0.95) {
+            float dy = yTip - (uResolution.y - fragPx.y);
+            if (dy >= 0.0 && dy <= len) {
+                float fade = smoothstep(0.0, 0.14, dy / len) * smoothstep(1.0, 0.08, dy / len) * smoothstep(0.95, 0.10, dx);
+                col += vec3(0.028, 0.033, 0.042) * fade;
             }
         }
     }
-    float fogBand = smoothstep(0.0, 0.55, vUv.y) * 0.045;
-    col = mix(col, vec3(0.55, 0.61, 0.70), fogBand * 0.5);
-    col = mix(col, col * vec3(0.94, 0.97, 1.03), 0.35);
 
     float hC = texture(uHeightTex, vUv).r;
-    if (hC > 0.015) {
+    if (hC > 0.004) {
         vec2 texel = 1.0 / uResolution;
         float hL = texture(uHeightTex, vUv - vec2(texel.x * 2.0, 0.0)).r;
         float hR = texture(uHeightTex, vUv + vec2(texel.x * 2.0, 0.0)).r;
@@ -1169,21 +1222,23 @@ void main() {
         vec3 N = normalize(vec3((hL - hR) * 4.5, (hU - hD) * 4.5, 1.0));
         vec3 V_in = vec3(0.0, 0.0, -1.0);
         vec3 V_out = vec3(0.0, 0.0, 1.0);
-        vec3 trR = refract(V_in, N, 1.0 / 1.3306);
+        vec3 trR = refract(V_in, N, 1.0 / 1.3268);
         vec3 trG = refract(V_in, N, 1.0 / 1.3330);
-        vec3 trB = refract(V_in, N, 1.0 / 1.3354);
-        vec2 shiftG = trG.xy / max(0.14, abs(trG.z));
-        vec2 uvW = uiUv(vUv + shiftG * (hC * hC) * 62.0 / uResolution);
+        vec3 trB = refract(V_in, N, 1.0 / 1.3402);
         vec3 wetCol = vec3(
             texture(uUiTex, uiUv(vUv + (trR.xy / max(0.14, abs(trR.z))) * (hC * hC) * 62.0 / uResolution)).r,
-            texture(uUiTex, uvW).g,
+            texture(uUiTex, uiUv(vUv + (trG.xy / max(0.14, abs(trG.z))) * (hC * hC) * 62.0 / uResolution)).g,
             texture(uUiTex, uiUv(vUv + (trB.xy / max(0.14, abs(trB.z))) * (hC * hC) * 62.0 / uResolution)).b
         );
         float fresW = 0.0204 + 0.9796 * pow(1.0 - clamp(dot(N, V_out), 0.0, 1.0), 5.0);
         vec3 ggxW = vec3(1.0) * min(1.2, D_GGX(max(0.0, dot(N, normalize(normalize(vec3(-0.62, 0.68, 0.39)) + V_out))), 0.06) * 0.030);
         wetCol += ggxW;
         wetCol = mix(wetCol, sampleRainyEnv(reflect(-V_out, N)), clamp(fresW * 0.85, 0.0, 0.7));
-        col = mix(col, wetCol, smoothstep(0.015, 0.075, hC));
+        float filmNm = hC * 5200.0;
+        vec3 irid = thinFilmInterference(filmNm, clamp(dot(N, V_out), 0.35, 1.0));
+        float iridAmt = smoothstep(0.004, 0.030, hC) * (1.0 - smoothstep(0.14, 0.34, hC));
+        wetCol *= (1.0 + (irid - 0.5) * 0.55 * iridAmt);
+        col = mix(col, wetCol, smoothstep(0.004, 0.055, hC));
     }
 
     fragColor = vec4(col, base.a);
