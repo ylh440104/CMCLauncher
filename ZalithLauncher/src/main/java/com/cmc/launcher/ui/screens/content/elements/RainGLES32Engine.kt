@@ -463,6 +463,7 @@ void main() {
 
     int rad = int(clamp(aPx * 1.15, 2.0, 56.0));
     ivec2 c = ivec2(d.posVol.xy);
+    float capScale = (uSpeed > 0.002) ? clamp(aPx / 64.0, 0.16, 0.30) : clamp(aPx / 48.0, 0.18, 0.55);
     for (int oy = -rad; oy <= rad; oy++) {
         for (int ox = -rad; ox <= rad; ox++) {
             ivec2 p = c + ivec2(ox, oy);
@@ -470,7 +471,7 @@ void main() {
             vec2 q = vec2(float(ox), float(oy) / d.velState.z) / max(1.0, aPx);
             float r2 = dot(q, q);
             if (r2 < 1.0) {
-                float hCap = sqrt(1.0 - r2) * clamp(aPx / 32.0, 0.25, 1.5);
+                float hCap = sqrt(1.0 - r2) * capScale;
                 vec4 cur = imageLoad(uHeightField, p);
                 cur.r = max(cur.r, hCap);
                 cur.g = max(cur.g, 1.0);
@@ -480,9 +481,14 @@ void main() {
     }
 
     if (d.posVol.y - aPx > uSimSize.y || aPx < 5.0) {
+        float fr1 = fract(sin(float(idx) * 12.9898 + uTime * 78.233) * 43758.5453);
+        float fr2 = fract(sin(float(idx) * 93.989 + uTime * 47.233) * 24634.6345);
+        d.posVol.x = fr1 * uSimSize.x;
         d.posVol.y = -24.0;
         d.velState.y = 0.0;
-        float rNew = 28.0 / uPxPerMeter;
+        d.velState.x = 0.0;
+        float rNewPx = mix(9.0, 20.0, fr2);
+        float rNew = rNewPx / uPxPerMeter;
         d.posVol.z = 1.35 * rNew * rNew * rNew;
     }
     drops[idx] = d;
@@ -517,9 +523,9 @@ void main() {
 
     float phys = max(src.r, c.r);
     float physWet = max(src.g, c.g);
-    float h = max(0.0, phys + wave - 0.042 * uDt);
+    float h = max(0.0, phys + wave - 0.065 * uDt);
 
-    imageStore(uHeightOut, p, vec4(h, physWet * exp(-0.045 * uDt), vel, 1.0));
+    imageStore(uHeightOut, p, vec4(h, physWet * exp(-0.075 * uDt), vel, 1.0));
 }
 """
 
@@ -807,6 +813,10 @@ void main() {
 
         float fresnel = 0.02006 + (1.0 - 0.02006) * pow(1.0 - clamp(dot(N, V_out), 0.0, 1.0), 5.0);
         wetCol = mix(wetCol, sampleRainyEnv(reflect(-V_out, N)), clamp(fresnel * 0.72 + tir * 0.70, 0.0, 0.92));
+
+        float wetMask = smoothstep(0.015, 0.07, hC);
+        float coverage = smoothstep(0.05, 0.28, hC);
+        wetCol = mix(wetCol, base.rgb * 1.05, clamp((coverage - 0.55) * 2.2, 0.0, 0.85));
 
         float ggx = D_GGX(max(dot(N, normalize(L + V_out)), 0.0), 0.055) * 0.045;
         wetCol += vec3(1.0) * min(1.5, ggx);
