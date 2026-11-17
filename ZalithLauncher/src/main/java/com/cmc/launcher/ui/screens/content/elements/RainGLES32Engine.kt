@@ -1126,31 +1126,37 @@ void main() {
         }
     }
 
-    for (int layer = 0; layer < 3; layer++) {
+    for (int layer = 0; layer < 5; layer++) {
         float fl = float(layer);
-        float spacing = mix(210.0, 95.0, fl * 0.5);
-        float speedY = mix(820.0, 1750.0, fl * 0.5);
-        float lenY = mix(46.0, 120.0, fl * 0.5);
-        float slant = mix(0.05, 0.13, fl * 0.5);
-        float bright = mix(0.07, 0.16, fl * 0.5);
+        float t5 = fl * 0.25;
+        float spacing = mix(165.0, 52.0, t5);
+        float speedY = mix(700.0, 2100.0, t5);
+        float lenY = mix(38.0, 155.0, t5);
+        float slant = mix(0.04, 0.15, t5);
+        float bright = mix(0.055, 0.20, t5);
+        float wpx = mix(0.50, 1.15, t5);
         float cellX = floor(fragPx.x / spacing);
         for (int ox = -1; ox <= 1; ox++) {
             float cx = cellX + float(ox);
             float rnd = hash12(vec2(cx, fl * 37.0 + 7.0));
-            float xPos = (cx + 0.18 + 0.64 * rnd) * spacing;
-            float phase = fract(uTime * speedY / (uResolution.y + lenY * 3.0) + rnd);
+            float rnd2 = hash12(vec2(cx, fl * 91.0 + 3.0));
+            float xPos = (cx + 0.15 + 0.70 * rnd) * spacing;
+            float phase = fract(uTime * speedY / (uResolution.y + lenY * 3.0) + rnd2);
             float yPos = -lenY + phase * (uResolution.y + lenY * 3.0);
             float dyr = fragPx.y - yPos;
-            if (dyr > -lenY && dyr < lenY * 0.18) {
+            if (dyr > -lenY && dyr < lenY * 0.20) {
                 float dxr = fragPx.x - (xPos + dyr * slant);
-                float wpx = mix(0.55, 1.05, fl * 0.5);
-                float line = exp(-abs(dxr) / wpx);
+                float thick = mix(0.75, 2.1, t5) * mix(0.6, 1.4, rnd);
+                float line = exp(-abs(dxr) / max(wpx, thick * 0.5));
                 float along = clamp((dyr + lenY) / lenY, 0.0, 1.0);
-                float fade = smoothstep(0.0, 0.30, along) * smoothstep(1.0, 0.55, along);
-                col += vec3(0.58, 0.65, 0.76) * line * fade * bright;
+                float fade = smoothstep(0.0, 0.26, along) * smoothstep(1.0, 0.62, along);
+                float head = smoothstep(0.10, 0.0, along) * 0.9;
+                col += vec3(0.58, 0.65, 0.76) * line * fade * (bright + head * 0.08);
             }
         }
     }
+    float fogBand = smoothstep(0.0, 0.55, vUv.y) * 0.045;
+    col = mix(col, vec3(0.55, 0.61, 0.70), fogBand * 0.5);
     col = mix(col, col * vec3(0.94, 0.97, 1.03), 0.35);
 
     float hC = texture(uHeightTex, vUv).r;
