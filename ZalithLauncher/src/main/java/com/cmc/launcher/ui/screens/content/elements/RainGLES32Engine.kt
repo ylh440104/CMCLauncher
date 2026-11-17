@@ -653,7 +653,7 @@ void main() {
                 if (drops[q].velState.w < 0.5) continue;
                 if (drops[q].velState.z < 0.5) continue;
                 float dq = length(drops[q].posVol.xy - d.posVol.xy);
-                if (dq < (drops[q].posVol.w + 0.5 * dM * uPxPerMeter) * 1.05) {
+                if (dq < (drops[q].posVol.w + 0.5 * dM * uPxPerMeter) * 1.05 && h21(vec2(float(idx), float(q) * 1.7)) > 0.45) {
                     drops[q].posVol.z += volNew;
                     float rq = pow(max(1.0e-12, drops[q].posVol.z) * 0.2387, 0.3333);
                     float aq = rq * max(0.28, sin(thRadGlobal()));
@@ -1213,7 +1213,7 @@ void main() {
     }
 
     float hC = texture(uHeightTex, vUv).r;
-    if (hC > 0.004) {
+    if (hC > 0.009) {
         vec2 texel = 1.0 / uResolution;
         float hL = texture(uHeightTex, vUv - vec2(texel.x * 2.0, 0.0)).r;
         float hR = texture(uHeightTex, vUv + vec2(texel.x * 2.0, 0.0)).r;
@@ -1236,9 +1236,9 @@ void main() {
         wetCol = mix(wetCol, sampleRainyEnv(reflect(-V_out, N)), clamp(fresW * 0.85, 0.0, 0.7));
         float filmNm = hC * 5200.0;
         vec3 irid = thinFilmInterference(filmNm, clamp(dot(N, V_out), 0.35, 1.0));
-        float iridAmt = smoothstep(0.004, 0.030, hC) * (1.0 - smoothstep(0.14, 0.34, hC));
+        float iridAmt = smoothstep(0.009, 0.050, hC) * (1.0 - smoothstep(0.14, 0.34, hC));
         wetCol *= (1.0 + (irid - 0.5) * 0.55 * iridAmt);
-        col = mix(col, wetCol, smoothstep(0.004, 0.055, hC));
+        col = mix(col, wetCol, smoothstep(0.009, 0.095, hC) * 0.55);
     }
 
     fragColor = vec4(col, base.a);
