@@ -30,6 +30,8 @@ import android.widget.Toast
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import androidx.compose.foundation.layout.Box
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.platform.ComposeView
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
@@ -71,7 +73,6 @@ import com.cmc.launcher.ui.screens.NestedNavKey
 import com.cmc.launcher.ui.screens.NormalNavKey
 import com.cmc.launcher.ui.screens.content.elements.Background
 import com.cmc.launcher.ui.screens.content.elements.LaunchGameOperation
-import com.cmc.launcher.ui.screens.content.elements.rainShaderEffect
 import com.cmc.launcher.ui.screens.content.elements.TitleTaskFlowDialog
 import com.cmc.launcher.ui.screens.content.navigateToLogView
 import com.cmc.launcher.ui.screens.content.navigateToWeb
@@ -314,36 +315,47 @@ class MainActivity : BaseAppCompatActivity() {
                 ObserveFullScreenSetting(AllSettings.launcherFullScreen.state)
 
                 val guides = rememberAppGuides(eventViewModel)
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .rainShaderEffect()
-                ) {
-                GuideHost(
-                    guides.mainScreen,
-                    nextTip = { NextTipLabel(it) }
-                ) {
-                    Background(
-                        modifier = Modifier.fillMaxSize(),
-                        viewModel = backgroundViewModel
-                    )
-                    MainScreen(
-                        screenBackStackModel = screenBackStackModel,
-                        eventViewModel = eventViewModel,
-                        modpackImportViewModel = modpackImportViewModel,
-                        modifyVersionViewModel = modifyVersionViewModel,
-                        submitError = {
-                            errorViewModel.showError(it)
+                AndroidView(
+                    modifier = Modifier.fillMaxSize(),
+                    factory = { ctx ->
+                        RainGLES32OverlayLayout(ctx).apply {
+                            attachOverlayContent(
+                                ComposeView(ctx).apply {
+                                    setContent {
+                                        CMCLauncherTheme(
+                                            backgroundViewModel = backgroundViewModel,
+                                            festivals = festivals
+                                        ) {
+                                            Box(Modifier.fillMaxSize()) {
+                                                GuideHost(
+                                                    guides.mainScreen,
+                                                    nextTip = { NextTipLabel(it) }
+                                                ) {
+                                                    Background(
+                                                        modifier = Modifier.fillMaxSize(),
+                                                        viewModel = backgroundViewModel
+                                                    )
+                                                    MainScreen(
+                                                        screenBackStackModel = screenBackStackModel,
+                                                        eventViewModel = eventViewModel,
+                                                        modpackImportViewModel = modpackImportViewModel,
+                                                        modifyVersionViewModel = modifyVersionViewModel,
+                                                        submitError = {
+                                                            errorViewModel.showError(it)
+                                                        }
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            )
                         }
-                    )
-                    //节日彩蛋效果层
-                    FestivalEffects(
-                        modifier = Modifier.fillMaxSize(),
-                        festivals = festivals
-                    )
+                    }
+                )
 
-                    //启动游戏操作流程
-                    LaunchGameOperation(
+                //启动游戏操作流程
+                LaunchGameOperation(
                         activity = this@MainActivity,
                         eventViewModel = eventViewModel,
                         launchGameViewModel = launchGameViewModel,
@@ -389,8 +401,6 @@ class MainActivity : BaseAppCompatActivity() {
                             }
                         )
                     }
-                }
-                }
                 ModpackImportOperation(
                     operation = modpackImportViewModel.importOperation,
                     changeOperation = { modpackImportViewModel.importOperation = it },
