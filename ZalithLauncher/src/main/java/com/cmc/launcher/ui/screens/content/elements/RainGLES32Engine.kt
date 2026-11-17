@@ -1242,6 +1242,10 @@ void main() {
         col = mix(col, wetCol, smoothstep(0.009, 0.095, hC) * 0.55);
     }
 
+    if (isnan(col.r) || isnan(col.g) || isnan(col.b) || isinf(col.r) || isinf(col.g) || isinf(col.b)) {
+        col = base.rgb;
+    }
+    col = clamp(col, vec3(0.0), vec3(1.0));
     fragColor = vec4(col, base.a);
 }
 """
