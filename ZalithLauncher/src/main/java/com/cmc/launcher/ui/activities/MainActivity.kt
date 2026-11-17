@@ -72,7 +72,7 @@ import com.cmc.launcher.ui.guide.rememberAppGuides
 import com.cmc.launcher.ui.screens.NestedNavKey
 import com.cmc.launcher.ui.screens.NormalNavKey
 import com.cmc.launcher.ui.screens.content.elements.Background
-import com.cmc.launcher.ui.screens.content.elements.RainWindowOverlay
+import com.cmc.launcher.ui.screens.content.elements.RainGLES32OverlayLayout
 import com.cmc.launcher.ui.screens.content.elements.LaunchGameOperation
 import com.cmc.launcher.ui.screens.content.elements.TitleTaskFlowDialog
 import com.cmc.launcher.ui.screens.content.navigateToLogView
@@ -319,39 +319,36 @@ class MainActivity : BaseAppCompatActivity() {
                 AndroidView(
                     modifier = Modifier.fillMaxSize(),
                     factory = { ctx ->
-                        RainWindowOverlay(ctx).apply {
-                            attachOverlayContent(
-                                ComposeView(ctx).apply {
-                                    setContent {
-                                        CMCLauncherTheme(
-                                            backgroundViewModel = backgroundViewModel,
-                                            festivals = festivals
+                        val uiContent = ComposeView(ctx).apply {
+                            setContent {
+                                CMCLauncherTheme(
+                                    backgroundViewModel = backgroundViewModel,
+                                    festivals = festivals
+                                ) {
+                                    Box(Modifier.fillMaxSize()) {
+                                        GuideHost(
+                                            guides.mainScreen,
+                                            nextTip = { NextTipLabel(it) }
                                         ) {
-                                            Box(Modifier.fillMaxSize()) {
-                                                GuideHost(
-                                                    guides.mainScreen,
-                                                    nextTip = { NextTipLabel(it) }
-                                                ) {
-                                                    Background(
-                                                        modifier = Modifier.fillMaxSize(),
-                                                        viewModel = backgroundViewModel
-                                                    )
-                                                    MainScreen(
-                                                        screenBackStackModel = screenBackStackModel,
-                                                        eventViewModel = eventViewModel,
-                                                        modpackImportViewModel = modpackImportViewModel,
-                                                        modifyVersionViewModel = modifyVersionViewModel,
-                                                        submitError = {
-                                                            errorViewModel.showError(it)
-                                                        }
-                                                    )
+                                            Background(
+                                                modifier = Modifier.fillMaxSize(),
+                                                viewModel = backgroundViewModel
+                                            )
+                                            MainScreen(
+                                                screenBackStackModel = screenBackStackModel,
+                                                eventViewModel = eventViewModel,
+                                                modpackImportViewModel = modpackImportViewModel,
+                                                modifyVersionViewModel = modifyVersionViewModel,
+                                                submitError = {
+                                                    errorViewModel.showError(it)
                                                 }
-                                            }
+                                            )
                                         }
                                     }
                                 }
-                            )
+                            }
                         }
+                        RainGLES32OverlayLayout(ctx, uiContent)
                     }
                 )
 
