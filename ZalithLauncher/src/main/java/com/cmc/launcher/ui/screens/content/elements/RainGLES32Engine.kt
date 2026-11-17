@@ -1126,22 +1126,32 @@ void main() {
         }
     }
 
-    for (int i = 0; i < 6; i++) {
-        float seed = float(i) * 19.37;
-        float speed = mix(1.0, 2.0, hash12(vec2(seed, 1.0)));
-        float tCycle = fract(uTime * speed + hash12(vec2(seed, 2.0)));
-        float xPos = hash12(vec2(floor(uTime * speed + hash12(vec2(seed, 2.0))), seed)) * uResolution.x;
-        float yTip = tCycle * (uResolution.y + 150.0);
-        float len = mix(60.0, 130.0, hash12(vec2(seed, 3.0)));
-        float dx = abs(fragPx.x - xPos);
-        if (dx < 0.95) {
-            float dy = yTip - (uResolution.y - fragPx.y);
-            if (dy >= 0.0 && dy <= len) {
-                float fade = smoothstep(0.0, 0.14, dy / len) * smoothstep(1.0, 0.08, dy / len) * smoothstep(0.95, 0.10, dx);
-                col += vec3(0.028, 0.033, 0.042) * fade;
+    for (int layer = 0; layer < 3; layer++) {
+        float fl = float(layer);
+        float spacing = mix(210.0, 95.0, fl * 0.5);
+        float speedY = mix(820.0, 1750.0, fl * 0.5);
+        float lenY = mix(46.0, 120.0, fl * 0.5);
+        float slant = mix(0.05, 0.13, fl * 0.5);
+        float bright = mix(0.07, 0.16, fl * 0.5);
+        float cellX = floor(fragPx.x / spacing);
+        for (int ox = -1; ox <= 1; ox++) {
+            float cx = cellX + float(ox);
+            float rnd = hash12(vec2(cx, fl * 37.0 + 7.0));
+            float xPos = (cx + 0.18 + 0.64 * rnd) * spacing;
+            float phase = fract(uTime * speedY / (uResolution.y + lenY * 3.0) + rnd);
+            float yPos = -lenY + phase * (uResolution.y + lenY * 3.0);
+            float dyr = fragPx.y - yPos;
+            if (dyr > -lenY && dyr < lenY * 0.18) {
+                float dxr = fragPx.x - (xPos + dyr * slant);
+                float wpx = mix(0.55, 1.05, fl * 0.5);
+                float line = exp(-abs(dxr) / wpx);
+                float along = clamp((dyr + lenY) / lenY, 0.0, 1.0);
+                float fade = smoothstep(0.0, 0.30, along) * smoothstep(1.0, 0.55, along);
+                col += vec3(0.58, 0.65, 0.76) * line * fade * bright;
             }
         }
     }
+    col = mix(col, col * vec3(0.94, 0.97, 1.03), 0.35);
 
     float hC = texture(uHeightTex, vUv).r;
     if (hC > 0.015) {
