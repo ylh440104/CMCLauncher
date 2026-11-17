@@ -301,14 +301,14 @@ private class RainGLES32Renderer(private val context: Context) : GLSurfaceView.R
             if (avg < 4 && mx < 12) blackStreak++
             Log.i(TAG, "frame=$framesDrawn avg=$avg max=$mx matrixReady=$matrixReady blackStreak=$blackStreak")
             try {
-                java.io.File(context.getExternalFilesDir(null), "rain_diag.txt").writeText(
-                    "frame=$framesDrawn
-avg=$avg
-max=$mx
-matrixReady=$matrixReady
-blackStreak=$blackStreak
-size=${width}x${height}
-"
+                val diag = java.io.File(context.getExternalFilesDir(null), "rain_diag.txt")
+                diag.writeText(
+                    "frame=$framesDrawn" + "\n" +
+                    "avg=$avg" + "\n" +
+                    "max=$mx" + "\n" +
+                    "matrixReady=$matrixReady" + "\n" +
+                    "blackStreak=$blackStreak" + "\n" +
+                    "size=${width}x$height" + "\n"
                 )
             } catch (_: Throwable) {
             }
