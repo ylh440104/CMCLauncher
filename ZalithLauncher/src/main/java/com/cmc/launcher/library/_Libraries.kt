@@ -1,18 +1,8 @@
-/*
- * Zalith Launcher 2
- * Copyright (C) 2025-2026 MovTery <movtery228@qq.com> and contributors
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See the GNU General Public License for more details.
  *
- * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/gpl-3.0.txt>.
  */
 
@@ -77,9 +67,6 @@ val libraryData = listOf(
     LibraryInfo("Process Phoenix", "Copyright © 2015 Jake Wharton", LICENSE_APACHE_2, "https://github.com/JakeWharton/ProcessPhoenix"),
     LibraryInfo("proxy-client-android", null, License(LICENSE_LGPL_3, R.raw.lgpl_3_license), "https://github.com/TouchController/TouchController"),
     LibraryInfo("Reorderable", "Copyright © 2023 Calvin Liang", LICENSE_APACHE_2, "https://github.com/Calvin-LL/Reorderable"),
-    LibraryInfo("sdl2-compat", "Copyright (C) 2026 Sam Lantinga <slouken@libsdl.org>", License("Zlib License", R.raw.sdl2_compat_license), "https://github.com/libsdl-org/sdl2-compat"),
-    LibraryInfo("SDL3", "Copyright (C) 1997-2026 Sam Lantinga <slouken@libsdl.org>", License("Zlib License", R.raw.sdl3_license), "https://github.com/libsdl-org/SDL"),
-    LibraryInfo("sora-editor", "Copyright (C) 2020-2026  Rosemoe", License("LGPL-2.1 License", R.raw.sora_editor_license), "https://github.com/Rosemoe/sora-editor"),
     LibraryInfo("SimpleFPEWrapper", "Copyright © 2026 MobileGL-Dev", License(LICENSE_LGPL_3, R.raw.lgpl_3_license), "https://github.com/MobileGL-Dev/SimpleFPEWrapper"),
     LibraryInfo("Terracotta", "Copyright © 2025 Burning_TNT", License(LICENSE_AGPL_3, net.burningtnt.terracotta.R.raw.terracotta_license), "https://github.com/burningtnt/Terracotta"),
     LibraryInfo("tm4e (TextMate for Eclipse)", "Copyright © Eclipse Foundation", License("EPL-2.0 License", R.raw.tm4e_license), "https://github.com/eclipse-tm4e/tm4e"),

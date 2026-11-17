@@ -112,7 +112,7 @@ class RainGLES32OverlayLayout(
     }
 }
 
-private class RainGLES32Renderer(context: Context) : GLSurfaceView.Renderer {
+private class RainGLES32Renderer(private val context: Context) : GLSurfaceView.Renderer {
 
     companion object {
         private const val TAG = "RainGL"
@@ -395,7 +395,13 @@ private class RainGLES32Renderer(context: Context) : GLSurfaceView.Renderer {
         val ok = IntArray(1)
         GLES32.glGetShaderiv(shader, GLES32.GL_COMPILE_STATUS, ok, 0)
         if (ok[0] == 0) {
-            Log.e(TAG, "$tag compile FAILED: ${GLES32.glGetShaderInfoLog(shader)}")
+            val info = GLES32.glGetShaderInfoLog(shader)
+            Log.e(TAG, "$tag compile FAILED: $info")
+            try {
+                java.io.File(context.getExternalFilesDir(null), "shader_err.txt")
+                    .writeText("$tag FAILED:\n$info\n\n")
+            } catch (_: Throwable) {
+            }
         }
     }
 
@@ -696,9 +702,12 @@ vec3 sampleRainyEnv(vec3 R) {
 
 vec3 unpackCaustic(ivec2 px) {
     int packed = imageLoad(uCausticBuf, clamp(px, ivec2(0), ivec2(uResolution) - 1)).r;
-    float r = float((packed >> 20) & 0x3FF) / 32.0;
-    float g = float((packed >> 10) & 0x3FF) / 32.0;
-    float b = float(packed & 0x3FF) / 32.0;
+    int r10 = packed / 1048576;
+    int g10 = (packed - r10 * 1048576) / 1024;
+    int b10 = packed - r10 * 1048576 - g10 * 1024;
+    float r = float(r10) / 32.0;
+    float g = float(g10) / 32.0;
+    float b = float(b10) / 32.0;
     return clamp(vec3(r, g, b), 0.0, 1.6);
 }
 
