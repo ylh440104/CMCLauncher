@@ -628,8 +628,12 @@ void main() {
 """
 
 private const val FINAL_OPTICS_FS = """#version 320 es
-#extension GL_OES_EGL_image_external_essl3 : require
 precision highp float;
+precision highp int;
+precision highp sampler2D;
+precision highp image2D;
+#extension GL_OES_EGL_image_external_essl3 : require
+precision highp samplerExternalOES;
 
 in vec2 vUv;
 out vec4 fragColor;
@@ -637,7 +641,7 @@ out vec4 fragColor;
 uniform samplerExternalOES uUiTex;
 uniform sampler2D uHeightTex;
 uniform mat4 uStMatrix;
-layout(r32i, binding = 2) uniform readonly iimage2D uCausticBuf;
+layout(r32i, binding = 2) uniform readonly highp iimage2D uCausticBuf;
 uniform vec2 uResolution;
 uniform float uGlassThicknessPx;
 uniform float uTime;
