@@ -144,6 +144,7 @@ private class RainGLES32Renderer(private val context: Context) : GLSurfaceView.R
 
     private var dropPhysicsProgram = 0
     private var heightFieldProgram = 0
+    private var clearSplatProgram = 0
     private var clearCausticsProgram = 0
     private var causticPhotonProgram = 0
     private var renderProgram = 0
@@ -151,6 +152,7 @@ private class RainGLES32Renderer(private val context: Context) : GLSurfaceView.R
     private var dropSsbo = 0
     private var heightTexA = 0
     private var heightTexB = 0
+    private var splatTex = 0
     private var causticIntTex = 0
 
     private var quadVao = 0
@@ -173,6 +175,7 @@ private class RainGLES32Renderer(private val context: Context) : GLSurfaceView.R
 
         dropPhysicsProgram = compileCompute(DROP_PHYSICS_CS, "dropPhysics")
         heightFieldProgram = compileCompute(HEIGHTFIELD_PDE_CS, "heightField")
+        clearSplatProgram = compileCompute(CLEAR_SPLAT_CS, "clearSplat")
         clearCausticsProgram = compileCompute(CLEAR_CAUSTICS_CS, "clearCaustics")
         causticPhotonProgram = compileCompute(CAUSTICS_PHOTON_CS, "causticPhoton")
         renderProgram = compileRender(FULLSCREEN_VS, FINAL_OPTICS_FS, "finalOptics")
@@ -211,21 +214,28 @@ private class RainGLES32Renderer(private val context: Context) : GLSurfaceView.R
         val inTex = if (pingPong == 0) heightTexA else heightTexB
         val outTex = if (pingPong == 0) heightTexB else heightTexA
 
-        // 1. DROP_PHYSICS_CS: 512 颗 SSBO 物理水滴（Furmidge 钉扎/Huh-Scriven 粘滞/聚并/LLD 沉积/Stefan 蒸发），球冠写入 outTex
+        // 1. 清空 splat R32I
+        GLES32.glUseProgram(clearSplatProgram)
+        GLES32.glBindImageTexture(0, splatTex, 0, false, 0, GLES32.GL_WRITE_ONLY, GLES32.GL_R32I)
+        GLES32.glDispatchCompute((width + 15) / 16, (height + 15) / 16, 1)
+        GLES32.glMemoryBarrier(GLES32.GL_SHADER_IMAGE_ACCESS_BARRIER_BIT)
+
+        // 2. DROP_PHYSICS_CS: 512 颗 SSBO 物理水滴，球冠 splat 写 R32I
         GLES32.glUseProgram(dropPhysicsProgram)
         GLES32.glBindBufferBase(GLES32.GL_SHADER_STORAGE_BUFFER, 0, dropSsbo)
         GLES32.glUniform2f(loc(dropPhysicsProgram, "uSimSize"), width.toFloat(), height.toFloat())
         GLES32.glUniform1f(loc(dropPhysicsProgram, "uPxPerMeter"), pxPerMeter)
         GLES32.glUniform1f(loc(dropPhysicsProgram, "uDt"), dt)
         GLES32.glUniform1f(loc(dropPhysicsProgram, "uTime"), elapsedSec)
-        GLES32.glBindImageTexture(1, outTex, 0, false, 0, GLES32.GL_READ_WRITE, GLES32.GL_RGBA16F)
+        GLES32.glBindImageTexture(2, splatTex, 0, false, 0, GLES32.GL_READ_WRITE, GLES32.GL_R32I)
         GLES32.glDispatchCompute(MAX_DROPS / 64, 1, 1)
         GLES32.glMemoryBarrier(GLES32.GL_SHADER_STORAGE_BARRIER_BIT or GLES32.GL_SHADER_IMAGE_ACCESS_BARRIER_BIT)
 
-        // 2. HEIGHTFIELD_PDE_CS: 浅水毛细波演化 + 蒸发（in→out，保留物理写入的球冠）
+        // 3. HEIGHTFIELD_PDE_CS: in+splat readonly → out writeonly
         GLES32.glUseProgram(heightFieldProgram)
         GLES32.glBindImageTexture(0, inTex, 0, false, 0, GLES32.GL_READ_ONLY, GLES32.GL_RGBA16F)
-        GLES32.glBindImageTexture(1, outTex, 0, false, 0, GLES32.GL_READ_WRITE, GLES32.GL_RGBA16F)
+        GLES32.glBindImageTexture(1, splatTex, 0, false, 0, GLES32.GL_READ_ONLY, GLES32.GL_R32F)
+        GLES32.glBindImageTexture(2, outTex, 0, false, 0, GLES32.GL_WRITE_ONLY, GLES32.GL_RGBA16F)
         GLES32.glUniform1f(loc(heightFieldProgram, "uDt"), dt)
         GLES32.glDispatchCompute((width + 15) / 16, (height + 15) / 16, 1)
         GLES32.glMemoryBarrier(GLES32.GL_SHADER_IMAGE_ACCESS_BARRIER_BIT)
@@ -327,12 +337,13 @@ private class RainGLES32Renderer(private val context: Context) : GLSurfaceView.R
     }
 
     private fun initSimulationTextures() {
-        val texs = intArrayOf(heightTexA, heightTexB, causticIntTex)
-        if (heightTexA != 0) GLES32.glDeleteTextures(3, texs, 0)
-        GLES32.glGenTextures(3, texs, 0)
+        val texs = intArrayOf(heightTexA, heightTexB, splatTex, causticIntTex)
+        if (heightTexA != 0) GLES32.glDeleteTextures(4, texs, 0)
+        GLES32.glGenTextures(4, texs, 0)
         heightTexA = texs[0]
         heightTexB = texs[1]
-        causticIntTex = texs[2]
+        splatTex = texs[2]
+        causticIntTex = texs[3]
 
         val fbos = IntArray(1)
         GLES32.glGenFramebuffers(1, fbos, 0)
@@ -349,6 +360,13 @@ private class RainGLES32Renderer(private val context: Context) : GLSurfaceView.R
             GLES32.glClearColor(0f, 0f, 0f, 0f)
             GLES32.glClear(GLES32.GL_COLOR_BUFFER_BIT)
         }
+
+        GLES32.glBindTexture(GLES32.GL_TEXTURE_2D, splatTex)
+        GLES32.glTexStorage2D(GLES32.GL_TEXTURE_2D, 1, GLES32.GL_R32I, width, height)
+        GLES32.glTexParameteri(GLES32.GL_TEXTURE_2D, GLES32.GL_TEXTURE_MIN_FILTER, GLES32.GL_NEAREST)
+        GLES32.glTexParameteri(GLES32.GL_TEXTURE_2D, GLES32.GL_TEXTURE_MAG_FILTER, GLES32.GL_NEAREST)
+        GLES32.glFramebufferTexture2D(GLES32.GL_FRAMEBUFFER, GLES32.GL_COLOR_ATTACHMENT0, GLES32.GL_TEXTURE_2D, splatTex, 0)
+        GLES32.glClear(GLES32.GL_COLOR_BUFFER_BIT)
 
         GLES32.glBindTexture(GLES32.GL_TEXTURE_2D, causticIntTex)
         GLES32.glTexStorage2D(GLES32.GL_TEXTURE_2D, 1, GLES32.GL_R32I, width, height)
@@ -429,7 +447,7 @@ layout(std430, binding = 0) buffer DropBuffer {
     Drop drops[];
 };
 
-layout(rgba16f, binding = 1) uniform highp image2D uHeightField;
+layout(r32i, binding = 2) uniform highp writeonly iimage2D splat;
 
 uniform vec2 uSimSize;
 uniform float uPxPerMeter;
@@ -514,10 +532,7 @@ void main() {
             float r2 = dot(q, q);
             if (r2 < 1.0) {
                 float hCap = sqrt(1.0 - r2) * capScale;
-                vec4 cur = imageLoad(uHeightField, p);
-                cur.r = max(cur.r, hCap);
-                cur.g = max(cur.g, 1.0);
-                imageStore(uHeightField, p, cur);
+                imageAtomicMax(splat, p, int(hCap * 1024.0));
             }
         }
     }
@@ -544,7 +559,8 @@ precision highp image2D;
 layout(local_size_x = 16, local_size_y = 16) in;
 
 layout(rgba16f, binding = 0) uniform readonly highp image2D uHeightIn;
-layout(rgba16f, binding = 1) uniform highp image2D uHeightOut;
+layout(r32i, binding = 1) uniform readonly highp iimage2D uSplat;
+layout(rgba16f, binding = 2) uniform writeonly highp image2D uHeightOut;
 
 uniform float uDt;
 
@@ -554,7 +570,7 @@ void main() {
     if (p.x >= sz.x || p.y >= sz.y) return;
 
     vec4 src = imageLoad(uHeightIn, p);
-    vec4 c = imageLoad(uHeightOut, p);
+    float splatH = float(imageLoad(uSplat, p).r) / 1024.0;
 
     vec4 l = imageLoad(uHeightIn, max(ivec2(0), p - ivec2(1, 0)));
     vec4 r = imageLoad(uHeightIn, min(sz - 1, p + ivec2(1, 0)));
@@ -566,11 +582,25 @@ void main() {
     vel *= exp(-3.6 * uDt);
     float wave = vel * uDt;
 
-    float phys = max(src.r, c.r);
-    float physWet = max(src.g, c.g);
+    float phys = max(src.r, splatH);
+    float physWet = max(src.g, splatH > 0.02 ? 1.0 : 0.0);
     float h = max(0.0, phys + wave - 0.065 * uDt);
 
     imageStore(uHeightOut, p, vec4(h, physWet * exp(-0.075 * uDt), vel, 1.0));
+}
+"""
+
+private const val CLEAR_SPLAT_CS = """#version 320 es
+precision highp float;
+precision highp int;
+precision highp image2D;
+layout(local_size_x = 16, local_size_y = 16) in;
+layout(r32i, binding = 0) uniform writeonly highp iimage2D uSplatBuf;
+void main() {
+    ivec2 p = ivec2(gl_GlobalInvocationID.xy);
+    ivec2 sz = imageSize(uSplatBuf);
+    if (p.x >= sz.x || p.y >= sz.y) return;
+    imageStore(uSplatBuf, p, ivec4(0));
 }
 """
 
