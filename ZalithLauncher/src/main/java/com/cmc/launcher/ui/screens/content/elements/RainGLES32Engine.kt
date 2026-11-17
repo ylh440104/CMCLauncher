@@ -308,6 +308,17 @@ private class RainGLES32Renderer(private val context: Context) : GLSurfaceView.R
         val data = FloatArray(MAX_DROPS * 8)
         for (i in 0 until MAX_DROPS) {
             val base = i * 8
+            if (i >= 384) {
+                data[base] = 0f
+                data[base + 1] = 0f
+                data[base + 2] = 0f
+                data[base + 3] = 0f
+                data[base + 4] = 0f
+                data[base + 5] = 0f
+                data[base + 6] = 0f
+                data[base + 7] = 0f
+                continue
+            }
             val rPx = when {
                 i < 48 -> Random.nextFloat() * 22f + 26f
                 i < 200 -> Random.nextFloat() * 12f + 13f
@@ -315,12 +326,12 @@ private class RainGLES32Renderer(private val context: Context) : GLSurfaceView.R
             }
             val rM = rPx / pxPerMeter
             data[base] = Random.nextFloat() * width
-            data[base + 1] = Random.nextFloat() * height
+            data[base + 1] = -20f - Random.nextFloat() * 1500f
             data[base + 2] = 1.35f * rM * rM * rM
             data[base + 3] = rPx
             data[base + 4] = 0f
             data[base + 5] = 0f
-            data[base + 6] = 1f
+            data[base + 6] = 0f
             data[base + 7] = 1f
         }
         val buf: FloatBuffer = ByteBuffer.allocateDirect(data.size * 4)
@@ -462,12 +473,77 @@ const float LAMBDA_T = 1.0e-8;
 const float COS_R_A = 0.49;
 const float EVAP_DIFF = 2.8e-10;
 
+float h21(vec2 p) {
+    vec3 p3 = fract(vec3(p.xyx) * 0.1031);
+    p3 += dot(p3, p3.yzx + 33.33);
+    return fract((p3.x + p3.y) * p3.z);
+}
+
+float vnoise(vec2 p) {
+    vec2 i = floor(p);
+    vec2 f = fract(p);
+    vec2 u = f * f * (3.0 - 2.0 * f);
+    return mix(mix(h21(i), h21(i + vec2(1.0, 0.0)), u.x), mix(h21(i + vec2(0.0, 1.0)), h21(i + vec2(1.0, 1.0)), u.x), u.y);
+}
+
 void main() {
     uint idx = gl_GlobalInvocationID.x;
     if (idx >= uint(drops.length())) return;
 
+    bool isSat = idx >= 384u;
+
     Drop d = drops[idx];
     if (d.velState.w < 0.5) return;
+
+    if (isSat) {
+        float age = d.velState.z + uDt;
+        d.velState.y += 0.030 * uDt;
+        d.posVol.xy += d.velState.xy * uPxPerMeter * uDt;
+        d.velState.xy *= exp(-4.0 * uDt);
+        d.velState.z = age;
+        if (age > 0.9 || length(d.velState.xy) < 0.0015) {
+            d.velState.w = 0.0;
+        } else {
+            float aPxS = d.posVol.w;
+            ivec2 cS = ivec2(d.posVol.xy);
+            int radS = int(ceil(aPxS));
+            for (int oy = -radS; oy <= radS; oy++) {
+                for (int ox = -radS; ox <= radS; ox++) {
+                    ivec2 pS = cS + ivec2(ox, oy);
+                    if (pS.x < 0 || pS.y < 0 || pS.x >= int(uSimSize.x) || pS.y >= int(uSimSize.y)) continue;
+                    vec2 qS = vec2(float(ox), float(oy)) / max(1.0, aPxS);
+                    float r2S = dot(qS, qS);
+                    if (r2S < 1.0) {
+                        imageAtomicMax(splat, pS, int(sqrt(1.0 - r2S) * 0.20 * 1024.0));
+                    }
+                }
+            }
+        }
+        drops[idx] = d;
+        return;
+    }
+
+    if (d.velState.z < 0.5) {
+        d.posVol.y += mix(1400.0, 2600.0, h21(vec2(float(idx), 1.7))) * uDt;
+        float landY = h21(vec2(float(idx) * 7.3, 2.9)) * uSimSize.y;
+        if (d.posVol.y >= landY) {
+            d.posVol.y = landY;
+            d.velState.z = 1.0;
+            float base = h21(vec2(float(idx) * 4.4, 8.1));
+            for (uint k = 384u; k < uint(drops.length()); k++) {
+                if (drops[k].velState.w >= 0.5) continue;
+                float ang = base * 6.28318 + float(k) * 1.87;
+                float spd = mix(0.006, 0.018, h21(vec2(float(k) * 9.7, float(idx) * 1.3)));
+                float rSm = 2.0 + 1.6 * h21(vec2(float(k) * 5.1, 3.3));
+                float rMSm = rSm / uPxPerMeter;
+                drops[k].posVol = vec4(d.posVol.xy, 1.35 * rMSm * rMSm * rMSm, rSm);
+                drops[k].velState = vec4(cos(ang) * spd, abs(sin(ang)) * spd * 0.5 + 0.004, 0.0, 1.0);
+                if (k > 391u) break;
+            }
+        }
+        drops[idx] = d;
+        return;
+    }
 
     float vol = d.posVol.z;
     float rCurvM = pow(max(0.0, vol / 1.35), 1.0 / 3.0);
@@ -485,9 +561,17 @@ void main() {
 
     if (fGrav > fPin) {
         float fNetY = (fGrav - fPin * 0.90) - visc * d.velState.y;
+        float dustFBM = vnoise(d.posVol.xy * 0.05) * 0.6 + vnoise(d.posVol.xy * 0.017) * 0.4;
+        float slipThreshold = 0.42 + 0.36 * dustFBM;
+        if (d.velState.y / 0.045 < slipThreshold) {
+            d.velState.y *= (0.90 + 0.16 * dustFBM);
+        } else {
+            d.velState.y = clamp(d.velState.y + (fNetY / max(mass, 1e-9)) * uDt, 0.003, 0.045);
+        }
+        float defect = vnoise(d.posVol.xy * 0.031 + 7.7) - 0.5;
+        float pinDeflect = defect * SIGMA * aM * 3.4;
         float gradX = sin(d.posVol.x * 0.015 - 0.15) - sin(d.posVol.x * 0.015 + 0.15);
-        float fNetX = gradX * SIGMA * aM * 2.2 - visc * 1.6 * d.velState.x;
-        d.velState.y = clamp(d.velState.y + (fNetY / max(mass, 1e-9)) * uDt, 0.003, 0.045);
+        float fNetX = gradX * SIGMA * aM * 2.2 + pinDeflect - visc * 1.6 * d.velState.x;
         d.velState.x = clamp(d.velState.x + (fNetX / max(mass, 1e-9)) * uDt, -0.014, 0.014);
     } else {
         d.velState.xy *= 0.5;
@@ -539,12 +623,12 @@ void main() {
 
     if (d.posVol.y - aPx > uSimSize.y || aPx < 5.0) {
         float fr1 = fract(sin(float(idx) * 12.9898 + uTime * 78.233) * 43758.5453);
-        float fr2 = fract(sin(float(idx) * 93.989 + uTime * 47.233) * 24634.6345);
         d.posVol.x = fr1 * uSimSize.x;
-        d.posVol.y = -24.0;
+        d.posVol.y = -20.0 - fract(sin(float(idx) * 93.989 + uTime * 47.233) * 24634.6345) * 300.0;
         d.velState.y = 0.0;
         d.velState.x = 0.0;
-        float rNewPx = mix(9.0, 20.0, fr2);
+        d.velState.z = 0.0;
+        float rNewPx = mix(9.0, 20.0, fract(sin(float(idx) * 45.164 + uTime * 12.989) * 12345.678));
         float rNew = rNewPx / uPxPerMeter;
         d.posVol.z = 1.35 * rNew * rNew * rNew;
     }
