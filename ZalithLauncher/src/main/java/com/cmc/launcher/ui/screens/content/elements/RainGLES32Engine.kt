@@ -285,15 +285,33 @@ private class RainGLES32Renderer(private val context: Context) : GLSurfaceView.R
         GLES32.glDrawArrays(GLES32.GL_TRIANGLES, 0, 3)
         framesDrawn++
         if (framesDrawn == 30 || framesDrawn == 150) {
-            val px = IntBuffer.allocate(1)
-            GLES32.glReadPixels(width / 2, height / 2, 1, 1, GLES32.GL_RGBA, GLES32.GL_UNSIGNED_BYTE, px)
-            val v = px.get(0)
-            val r = v and 0xFF
-            val g = (v shr 8) and 0xFF
-            val b = (v shr 16) and 0xFF
-            val lum = (r + g + b) / 3
-            if (lum < 12) blackStreak++
-            Log.i(TAG, "frame=$framesDrawn rgb=($r,$g,$b) matrixReady=$matrixReady blackStreak=$blackStreak")
+            val sw = 16
+            val sh = 16
+            val px = IntBuffer.allocate(sw * sh)
+            GLES32.glReadPixels(width / 2 - sw / 2, height / 2 - sh / 2, sw, sh, GLES32.GL_RGBA, GLES32.GL_UNSIGNED_BYTE, px)
+            var sum = 0L
+            var mx = 0
+            for (i in 0 until sw * sh) {
+                val v = px.get(i)
+                val l = ((v and 0xFF) + ((v shr 8) and 0xFF) + ((v shr 16) and 0xFF)) / 3
+                sum += l
+                if (l > mx) mx = l
+            }
+            val avg = (sum / (sw * sh)).toInt()
+            if (avg < 4 && mx < 12) blackStreak++
+            Log.i(TAG, "frame=$framesDrawn avg=$avg max=$mx matrixReady=$matrixReady blackStreak=$blackStreak")
+            try {
+                java.io.File(context.getExternalFilesDir(null), "rain_diag.txt").writeText(
+                    "frame=$framesDrawn
+avg=$avg
+max=$mx
+matrixReady=$matrixReady
+blackStreak=$blackStreak
+size=${width}x${height}
+"
+                )
+            } catch (_: Throwable) {
+            }
         }
     }
 
