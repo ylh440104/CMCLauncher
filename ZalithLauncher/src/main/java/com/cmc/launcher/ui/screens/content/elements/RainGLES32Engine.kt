@@ -447,7 +447,7 @@ layout(std430, binding = 0) buffer DropBuffer {
     Drop drops[];
 };
 
-layout(r32i, binding = 2) uniform highp writeonly iimage2D splat;
+layout(r32i, binding = 2) uniform highp iimage2D splat;
 
 uniform vec2 uSimSize;
 uniform float uPxPerMeter;
@@ -464,7 +464,7 @@ const float EVAP_DIFF = 2.8e-10;
 
 void main() {
     uint idx = gl_GlobalInvocationID.x;
-    if (idx >= drops.length()) return;
+    if (idx >= uint(drops.length())) return;
 
     Drop d = drops[idx];
     if (d.velState.w < 0.5) return;
@@ -509,7 +509,7 @@ void main() {
     vol = max(0.0, vol - 6.28318 * aM * EVAP_DIFF * uDt);
     d.posVol.z = vol;
 
-    for (uint j = 0u; j < drops.length(); j++) {
+    for (uint j = 0u; j < uint(drops.length()); j++) {
         if (j == idx) continue;
         Drop other = drops[j];
         if (other.velState.w < 0.5) continue;
