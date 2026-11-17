@@ -3,6 +3,7 @@ package com.cmc.launcher.ui.screens.content.elements
 import android.content.Context
 import android.graphics.SurfaceTexture
 import android.opengl.GLES11Ext
+import android.opengl.GLES31
 import android.opengl.GLES32
 import android.opengl.GLSurfaceView
 import android.util.Log
@@ -36,7 +37,6 @@ class RainWindowOverlay @JvmOverloads constructor(
     private var uiSurfaceTexture: SurfaceTexture? = null
     private var uiSurface: Surface? = null
     private var capturedView: View? = null
-    private var lastCapture = 0L
 
     private val frameCallback = object : Choreographer.FrameCallback {
         override fun doFrame(frameTimeNanos: Long) {
@@ -273,8 +273,9 @@ private class RainRenderer : GLSurfaceView.Renderer {
             GLES32.glTexParameteri(GLES32.GL_TEXTURE_2D, GLES32.GL_TEXTURE_MAG_FILTER, GLES32.GL_LINEAR)
             GLES32.glTexParameteri(GLES32.GL_TEXTURE_2D, GLES32.GL_TEXTURE_WRAP_S, GLES32.GL_CLAMP_TO_EDGE)
             GLES32.glTexParameteri(GLES32.GL_TEXTURE_2D, GLES32.GL_TEXTURE_WRAP_T, GLES32.GL_CLAMP_TO_EDGE)
-            GLES32.glClearTexImage(t, 0, GLES32.GL_RGBA, GLES32.GL_FLOAT, zero4)
+            GLES31.glClearTexImage(t, 0, GLES32.GL_RGBA, GLES32.GL_HALF_FLOAT, null)
         }
+        GLES32.glBindFramebuffer(GLES32.GL_FRAMEBUFFER, 0)
     }
 
     private fun buildCompute(src: String, tag: String): Int {
@@ -339,7 +340,6 @@ private class RainRenderer : GLSurfaceView.Renderer {
         GLES32.glUniform2f(GLES32.glGetUniformLocation(p, n), a, b)
     }
 
-    private val zero4 = floatArrayOf(0f, 0f, 0f, 0f)
 
     private val IDENT = floatArrayOf(
         1f, 0f, 0f, 0f,
