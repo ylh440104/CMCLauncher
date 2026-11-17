@@ -5,43 +5,42 @@ import android.graphics.SurfaceTexture
 import android.opengl.GLES11Ext
 import android.opengl.GLES32
 import android.opengl.GLSurfaceView
-import android.os.Build
-import android.util.AttributeSet
+import android.util.Log
 import android.view.Choreographer
 import android.view.Surface
 import android.view.View
 import android.widget.FrameLayout
-import androidx.annotation.RequiresApi
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.nio.FloatBuffer
 import javax.microedition.khronos.egl.EGLConfig
 import javax.microedition.khronos.opengles.GL10
 import kotlin.math.max
+import kotlin.math.min
 import kotlin.random.Random
 
-@RequiresApi(Build.VERSION_CODES.N)
-class RainGLES32OverlayLayout @JvmOverloads constructor(
+class RainWindowOverlay @JvmOverloads constructor(
     context: Context,
-    attrs: AttributeSet? = null
-) : FrameLayout(context, attrs) {
+    contentView: View? = null
+) : FrameLayout(context) {
 
     private val glView = GLSurfaceView(context).apply {
         setEGLContextClientVersion(3)
-        setZOrderMediaOverlay(true)
+        setZOrderOnTop(true)
         isClickable = false
         isFocusable = false
     }
 
-    private val renderer = RainGLES32Renderer(context)
+    private val renderer = RainRenderer()
 
     private var uiSurfaceTexture: SurfaceTexture? = null
     private var uiSurface: Surface? = null
-    private var contentView: View? = null
+    private var capturedView: View? = null
+    private var lastCapture = 0L
 
-    private val uiCaptureCallback = object : Choreographer.FrameCallback {
+    private val frameCallback = object : Choreographer.FrameCallback {
         override fun doFrame(frameTimeNanos: Long) {
-            captureUiToSurface()
+            capturedView?.let { capture(it) }
             Choreographer.getInstance().postFrameCallback(this)
         }
     }
@@ -49,720 +48,549 @@ class RainGLES32OverlayLayout @JvmOverloads constructor(
     init {
         glView.setRenderer(renderer)
         glView.renderMode = GLSurfaceView.RENDERMODE_CONTINUOUSLY
-    }
-
-    override fun onFinishInflate() {
-        super.onFinishInflate()
-        if (childCount > 0) {
-            contentView = getChildAt(0)
+        capturedView = contentView
+        contentView?.let {
+            addView(it, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
         }
         addView(glView, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
     }
 
     fun attachOverlayContent(view: View) {
-        contentView = view
+        capturedView = view
         addView(view, 0, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
-        if (glView.parent == null) {
-            addView(glView, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
-        }
     }
 
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
-        Choreographer.getInstance().postFrameCallback(uiCaptureCallback)
+        Choreographer.getInstance().postFrameCallback(frameCallback)
     }
 
     override fun onDetachedFromWindow() {
-        Choreographer.getInstance().removeFrameCallback(uiCaptureCallback)
+        Choreographer.getInstance().removeFrameCallback(frameCallback)
         uiSurface?.release()
         uiSurface = null
         super.onDetachedFromWindow()
     }
 
-    private fun captureUiToSurface() {
-        val target = contentView ?: return
-        val w = target.width
-        val h = target.height
+    private fun capture(view: View) {
+        val w = view.width
+        val h = view.height
         if (w <= 0 || h <= 0) return
-
-        val texId = renderer.uiExternalTexId
+        val texId = renderer.uiTexId
         if (texId == 0) return
 
         if (uiSurfaceTexture == null) {
-            uiSurfaceTexture = SurfaceTexture(texId).apply {
-                setDefaultBufferSize(w, h)
-                uiSurface = Surface(this)
-                renderer.bindSurfaceTexture(this)
+            try {
+                uiSurfaceTexture = SurfaceTexture(texId).apply {
+                    setDefaultBufferSize(w, h)
+                    uiSurface = Surface(this)
+                    renderer.attachSurfaceTexture(this)
+                    Log.i("RainWindow", "SurfaceTexture created ${w}x$h}")
+                }
+            } catch (e: Throwable) {
+                Log.e("RainWindow", "SurfaceTexture fail", e)
+                return
             }
         }
 
         val surface = uiSurface ?: return
         if (!surface.isValid) return
-
         try {
             val canvas = surface.lockHardwareCanvas()
-            target.draw(canvas)
+            view.draw(canvas)
             surface.unlockCanvasAndPost(canvas)
-        } catch (_: Throwable) {
+        } catch (e: Throwable) {
+            Log.e("RainWindow", "capture fail", e)
         }
     }
 }
 
-@RequiresApi(Build.VERSION_CODES.N)
-private class RainGLES32Renderer(
-    context: Context
-) : GLSurfaceView.Renderer {
+private class RainRenderer : GLSurfaceView.Renderer {
 
     companion object {
-        const val MAX_DROPS = 512
-        const val DROP_FLOATS = 8
+        private const val TAG = "RainRenderer"
+        private const val DROPS = 384
+        private const val LOCAL = 64
+        private const val HALF_W = 360
+        private const val HALF_H = 806
     }
 
-    private val pxPerMeter = (context.resources.displayMetrics.xdpi / 0.0254f).coerceAtLeast(12000f)
-
     @Volatile
-    var uiExternalTexId: Int = 0
+    var uiTexId = 0
         private set
 
     @Volatile
     private var surfaceTexture: SurfaceTexture? = null
 
-    private var width = 1080
-    private var height = 2400
+    private val stMatrix = FloatArray(16)
+    private var matrixReady = false
 
-    private var dropPhysicsProgram = 0
-    private var heightFieldProgram = 0
-    private var clearCausticsProgram = 0
-    private var causticPhotonProgram = 0
-    private var renderProgram = 0
+    private var width = HALF_W * 2
+    private var height = HALF_H * 2
 
+    private var physicsProgram = 0
+    private var filmProgram = 0
+    private var compositeProgram = 0
     private var dropSsbo = 0
-    private var heightTexA = 0
-    private var heightTexB = 0
-    private var causticIntTex = 0
-    private var pingPong = 0
-
-    private var quadVao = 0
+    private var filmA = 0
+    private var filmB = 0
+    private var flip = 0
+    private var vao = 0
     private var lastNanos = System.nanoTime()
-    private var elapsedSec = 0f
+    private var elapsed = 0f
 
-    fun bindSurfaceTexture(st: SurfaceTexture) {
+    fun attachSurfaceTexture(st: SurfaceTexture) {
         surfaceTexture = st
     }
 
     override fun onSurfaceCreated(gl: GL10?, config: EGLConfig?) {
         val tex = IntArray(1)
         GLES32.glGenTextures(1, tex, 0)
-        uiExternalTexId = tex[0]
-        GLES32.glBindTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, uiExternalTexId)
+        uiTexId = tex[0]
+        GLES32.glBindTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, uiTexId)
         GLES32.glTexParameteri(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, GLES32.GL_TEXTURE_MIN_FILTER, GLES32.GL_LINEAR)
         GLES32.glTexParameteri(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, GLES32.GL_TEXTURE_MAG_FILTER, GLES32.GL_LINEAR)
         GLES32.glTexParameteri(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, GLES32.GL_TEXTURE_WRAP_S, GLES32.GL_CLAMP_TO_EDGE)
         GLES32.glTexParameteri(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, GLES32.GL_TEXTURE_WRAP_T, GLES32.GL_CLAMP_TO_EDGE)
 
-        dropPhysicsProgram = compileComputeProgram(DROP_PHYSICS_CS)
-        heightFieldProgram = compileComputeProgram(HEIGHTFIELD_PDE_CS)
-        clearCausticsProgram = compileComputeProgram(CLEAR_CAUSTICS_CS)
-        causticPhotonProgram = compileComputeProgram(CAUSTICS_PHOTON_CS)
-        renderProgram = compileRenderProgram(FULLSCREEN_VS, FINAL_OPTICS_FS)
+        physicsProgram = buildCompute(PHYSICS_CS, "physics")
+        filmProgram = buildCompute(FILM_PDE_CS, "film")
+        compositeProgram = buildRender(FULLSCREEN_VS, COMPOSITE_FS, "composite")
 
         val vaos = IntArray(1)
         GLES32.glGenVertexArrays(1, vaos, 0)
-        quadVao = vaos[0]
+        vao = vaos[0]
 
-        initDropSsbo()
+        initDrops()
+        Log.i(TAG, "GL init done")
     }
 
     override fun onSurfaceChanged(gl: GL10?, w: Int, h: Int) {
         width = max(1, w)
         height = max(1, h)
         surfaceTexture?.setDefaultBufferSize(width, height)
-        initSimulationTextures()
+        initFilmTextures()
+        Log.i(TAG, "surface ${width}x${height}")
     }
 
     override fun onDrawFrame(gl: GL10?) {
         val now = System.nanoTime()
-        val dt = ((now - lastNanos) / 1_000_000_000f).coerceIn(0.001f, 0.033f)
+        val dt = ((now - lastNanos) / 1_000_000_000f).coerceIn(0.0005f, 0.05f)
         lastNanos = now
-        elapsedSec += dt
+        elapsed += dt
 
         surfaceTexture?.let {
             try {
                 it.updateTexImage()
+                it.getTransformMatrix(stMatrix)
+                matrixReady = true
             } catch (_: Throwable) {
             }
         }
 
-        val inTex = if (pingPong == 0) heightTexA else heightTexB
-        val outTex = if (pingPong == 0) heightTexB else heightTexA
+        val filmIn = if (flip == 0) filmA else filmB
+        val filmOut = if (flip == 0) filmB else filmA
 
-        GLES32.glUseProgram(dropPhysicsProgram)
+        GLES32.glUseProgram(physicsProgram)
         GLES32.glBindBufferBase(GLES32.GL_SHADER_STORAGE_BUFFER, 0, dropSsbo)
-        GLES32.glUniform2f(GLES32.glGetUniformLocation(dropPhysicsProgram, "uSimSize"), width.toFloat(), height.toFloat())
-        GLES32.glUniform1f(GLES32.glGetUniformLocation(dropPhysicsProgram, "uPxPerMeter"), pxPerMeter)
-        GLES32.glUniform1f(GLES32.glGetUniformLocation(dropPhysicsProgram, "uDt"), dt)
-        GLES32.glUniform1f(GLES32.glGetUniformLocation(dropPhysicsProgram, "uTime"), elapsedSec)
-        GLES32.glBindImageTexture(1, outTex, 0, false, 0, GLES32.GL_READ_WRITE, GLES32.GL_RGBA16F)
-        GLES32.glDispatchCompute(MAX_DROPS / 64, 1, 1)
+        GLES32.glBindImageTexture(1, filmOut, 0, false, 0, GLES32.GL_READ_WRITE, GLES32.GL_RGBA16F)
+        u2(physicsProgram, "uSim", width.toFloat(), height.toFloat())
+        u1(physicsProgram, "uDt", dt)
+        u1(physicsProgram, "uTime", elapsed)
+        GLES32.glDispatchCompute(DROPS / LOCAL, 1, 1)
         GLES32.glMemoryBarrier(GLES32.GL_SHADER_STORAGE_BARRIER_BIT or GLES32.GL_SHADER_IMAGE_ACCESS_BARRIER_BIT)
 
-        GLES32.glUseProgram(heightFieldProgram)
-        GLES32.glBindImageTexture(0, inTex, 0, false, 0, GLES32.GL_READ_ONLY, GLES32.GL_RGBA16F)
-        GLES32.glBindImageTexture(1, outTex, 0, false, 0, GLES32.GL_WRITE_ONLY, GLES32.GL_RGBA16F)
-        GLES32.glUniform1f(GLES32.glGetUniformLocation(heightFieldProgram, "uDt"), dt)
+        GLES32.glUseProgram(filmProgram)
+        GLES32.glBindImageTexture(0, filmIn, 0, false, 0, GLES32.GL_READ_ONLY, GLES32.GL_RGBA16F)
+        GLES32.glBindImageTexture(1, filmOut, 0, false, 0, GLES32.GL_READ_WRITE, GLES32.GL_RGBA16F)
+        u1(filmProgram, "uDt", dt)
         GLES32.glDispatchCompute((width + 15) / 16, (height + 15) / 16, 1)
         GLES32.glMemoryBarrier(GLES32.GL_SHADER_IMAGE_ACCESS_BARRIER_BIT)
 
-        GLES32.glUseProgram(clearCausticsProgram)
-        GLES32.glBindImageTexture(0, causticIntTex, 0, false, 0, GLES32.GL_WRITE_ONLY, GLES32.GL_R32I)
-        GLES32.glDispatchCompute((width + 15) / 16, (height + 15) / 16, 1)
-        GLES32.glMemoryBarrier(GLES32.GL_SHADER_IMAGE_ACCESS_BARRIER_BIT)
-
-        GLES32.glUseProgram(causticPhotonProgram)
-        GLES32.glBindImageTexture(0, outTex, 0, false, 0, GLES32.GL_READ_ONLY, GLES32.GL_RGBA16F)
-        GLES32.glBindImageTexture(1, causticIntTex, 0, false, 0, GLES32.GL_READ_WRITE, GLES32.GL_R32I)
-        GLES32.glDispatchCompute((width + 15) / 16, (height + 15) / 16, 1)
-        GLES32.glMemoryBarrier(GLES32.GL_SHADER_IMAGE_ACCESS_BARRIER_BIT or GLES32.GL_TEXTURE_FETCH_BARRIER_BIT)
-
-        pingPong = 1 - pingPong
+        flip = 1 - flip
 
         GLES32.glViewport(0, 0, width, height)
-        GLES32.glUseProgram(renderProgram)
+        GLES32.glUseProgram(compositeProgram)
 
         GLES32.glActiveTexture(GLES32.GL_TEXTURE0)
-        GLES32.glBindTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, uiExternalTexId)
-        GLES32.glUniform1i(GLES32.glGetUniformLocation(renderProgram, "uUiTex"), 0)
+        GLES32.glBindTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, uiTexId)
+        GLES32.glUniform1i(GLES32.glGetUniformLocation(compositeProgram, "uUi"), 0)
 
         GLES32.glActiveTexture(GLES32.GL_TEXTURE1)
-        GLES32.glBindTexture(GLES32.GL_TEXTURE_2D, outTex)
-        GLES32.glUniform1i(GLES32.glGetUniformLocation(renderProgram, "uHeightTex"), 1)
+        GLES32.glBindTexture(GLES32.GL_TEXTURE_2D, filmOut)
+        GLES32.glUniform1i(GLES32.glGetUniformLocation(compositeProgram, "uFilm"), 1)
 
-        GLES32.glBindImageTexture(2, causticIntTex, 0, false, 0, GLES32.GL_READ_ONLY, GLES32.GL_R32I)
+        GLES32.glUniform2f(GLES32.glGetUniformLocation(compositeProgram, "uRes"), width.toFloat(), height.toFloat())
+        GLES32.glUniform1f(GLES32.glGetUniformLocation(compositeProgram, "uTime"), elapsed)
+        GLES32.glUniformMatrix4fv(
+            GLES32.glGetUniformLocation(compositeProgram, "uStMat"), 1, false,
+            if (matrixReady) stMatrix else IDENT, 0
+        )
 
-        GLES32.glUniform2f(GLES32.glGetUniformLocation(renderProgram, "uResolution"), width.toFloat(), height.toFloat())
-        GLES32.glUniform1f(GLES32.glGetUniformLocation(renderProgram, "uGlassThicknessPx"), 0.004f * pxPerMeter * 0.25f)
-        GLES32.glUniform1f(GLES32.glGetUniformLocation(renderProgram, "uTime"), elapsedSec)
-
-        GLES32.glBindVertexArray(quadVao)
+        GLES32.glBindVertexArray(vao)
         GLES32.glDrawArrays(GLES32.GL_TRIANGLES, 0, 3)
     }
 
-    private fun initDropSsbo() {
-        val data = FloatArray(MAX_DROPS * DROP_FLOATS)
-        for (i in 0 until MAX_DROPS) {
-            val base = i * DROP_FLOATS
-            val rPx = when {
-                i < 48 -> Random.nextFloat() * 22f + 26f
-                i < 200 -> Random.nextFloat() * 12f + 13f
-                else -> Random.nextFloat() * 6f + 5.5f
+    private fun initDrops() {
+        val data = FloatArray(DROPS * 8)
+        for (i in 0 until DROPS) {
+            val b = i * 8
+            data[b] = Random.nextFloat() * width
+            data[b + 1] = Random.nextFloat() * height
+            val r = when {
+                i % 9 == 0 -> 26f + Random.nextFloat() * 16f
+                i % 3 == 0 -> 14f + Random.nextFloat() * 10f
+                else -> 7f + Random.nextFloat() * 6f
             }
-            val rM = rPx / pxPerMeter
-            data[base] = Random.nextFloat() * width
-            data[base + 1] = Random.nextFloat() * height
-            data[base + 2] = 1.35f * rM * rM * rM
-            data[base + 3] = rPx
-            data[base + 4] = 0f
-            data[base + 5] = 0f
-            data[base + 6] = 1f
-            data[base + 7] = 1f
+            data[b + 2] = 0f
+            data[b + 3] = r
+            data[b + 4] = 0f
+            data[b + 5] = 0f
+            data[b + 6] = 0f
+            data[b + 7] = 1f
         }
         val buf: FloatBuffer = ByteBuffer.allocateDirect(data.size * 4)
-            .order(ByteOrder.nativeOrder())
-            .asFloatBuffer()
-            .put(data)
+            .order(ByteOrder.nativeOrder()).asFloatBuffer().put(data)
         buf.position(0)
 
-        val buffers = IntArray(1)
-        GLES32.glGenBuffers(1, buffers, 0)
-        dropSsbo = buffers[0]
+        val bs = IntArray(1)
+        GLES32.glGenBuffers(1, bs, 0)
+        dropSsbo = bs[0]
         GLES32.glBindBuffer(GLES32.GL_SHADER_STORAGE_BUFFER, dropSsbo)
         GLES32.glBufferData(GLES32.GL_SHADER_STORAGE_BUFFER, data.size * 4, buf, GLES32.GL_DYNAMIC_DRAW)
     }
 
-    private fun initSimulationTextures() {
-        val texs = intArrayOf(heightTexA, heightTexB, causticIntTex)
-        if (heightTexA != 0) GLES32.glDeleteTextures(3, texs, 0)
-        GLES32.glGenTextures(3, texs, 0)
-        heightTexA = texs[0]
-        heightTexB = texs[1]
-        causticIntTex = texs[2]
-
-        for (i in 0..1) {
-            GLES32.glBindTexture(GLES32.GL_TEXTURE_2D, texs[i])
+    private fun initFilmTextures() {
+        val texs = intArrayOf(filmA, filmB)
+        if (filmA != 0) GLES32.glDeleteTextures(2, texs, 0)
+        GLES32.glGenTextures(2, texs, 0)
+        filmA = texs[0]
+        filmB = texs[1]
+        for (t in texs) {
+            GLES32.glBindTexture(GLES32.GL_TEXTURE_2D, t)
             GLES32.glTexStorage2D(GLES32.GL_TEXTURE_2D, 1, GLES32.GL_RGBA16F, width, height)
             GLES32.glTexParameteri(GLES32.GL_TEXTURE_2D, GLES32.GL_TEXTURE_MIN_FILTER, GLES32.GL_LINEAR)
             GLES32.glTexParameteri(GLES32.GL_TEXTURE_2D, GLES32.GL_TEXTURE_MAG_FILTER, GLES32.GL_LINEAR)
             GLES32.glTexParameteri(GLES32.GL_TEXTURE_2D, GLES32.GL_TEXTURE_WRAP_S, GLES32.GL_CLAMP_TO_EDGE)
             GLES32.glTexParameteri(GLES32.GL_TEXTURE_2D, GLES32.GL_TEXTURE_WRAP_T, GLES32.GL_CLAMP_TO_EDGE)
+            GLES32.glClearTexImage(t, 0, GLES32.GL_RGBA, GLES32.GL_FLOAT, zero4)
         }
-
-        GLES32.glBindTexture(GLES32.GL_TEXTURE_2D, causticIntTex)
-        GLES32.glTexStorage2D(GLES32.GL_TEXTURE_2D, 1, GLES32.GL_R32I, width, height)
-        GLES32.glTexParameteri(GLES32.GL_TEXTURE_2D, GLES32.GL_TEXTURE_MIN_FILTER, GLES32.GL_NEAREST)
-        GLES32.glTexParameteri(GLES32.GL_TEXTURE_2D, GLES32.GL_TEXTURE_MAG_FILTER, GLES32.GL_NEAREST)
     }
 
-    private fun compileComputeProgram(src: String): Int {
-        val shader = GLES32.glCreateShader(GLES32.GL_COMPUTE_SHADER)
-        GLES32.glShaderSource(shader, src)
-        GLES32.glCompileShader(shader)
-        val prog = GLES32.glCreateProgram()
-        GLES32.glAttachShader(prog, shader)
-        GLES32.glLinkProgram(prog)
-        GLES32.glDeleteShader(shader)
-        return prog
+    private fun buildCompute(src: String, tag: String): Int {
+        val sh = GLES32.glCreateShader(GLES32.GL_COMPUTE_SHADER)
+        GLES32.glShaderSource(sh, src)
+        GLES32.glCompileShader(sh)
+        val ok = IntArray(1)
+        GLES32.glGetShaderiv(sh, GLES32.GL_COMPILE_STATUS, ok, 0)
+        if (ok[0] == 0) {
+            Log.e(TAG, "$tag compile: ${GLES32.glGetShaderInfoLog(sh)}")
+            GLES32.glDeleteShader(sh)
+            return 0
+        }
+        val p = GLES32.glCreateProgram()
+        GLES32.glAttachShader(p, sh)
+        GLES32.glLinkProgram(p)
+        GLES32.glGetProgramiv(p, GLES32.GL_LINK_STATUS, ok, 0)
+        if (ok[0] == 0) {
+            Log.e(TAG, "$tag link: ${GLES32.glGetProgramInfoLog(p)}")
+            return 0
+        }
+        GLES32.glDeleteShader(sh)
+        return p
     }
 
-    private fun compileRenderProgram(vsSrc: String, fsSrc: String): Int {
-        val vs = GLES32.glCreateShader(GLES32.GL_VERTEX_SHADER).apply {
-            GLES32.glShaderSource(this, vsSrc)
-            GLES32.glCompileShader(this)
+    private fun buildRender(vsSrc: String, fsSrc: String, tag: String): Int {
+        fun sh(type: Int, src: String): Int {
+            val s = GLES32.glCreateShader(type)
+            GLES32.glShaderSource(s, src)
+            GLES32.glCompileShader(s)
+            val ok = IntArray(1)
+            GLES32.glGetShaderiv(s, GLES32.GL_COMPILE_STATUS, ok, 0)
+            if (ok[0] == 0) {
+                Log.e(TAG, "$tag shader: ${GLES32.glGetShaderInfoLog(s)}")
+                return 0
+            }
+            return s
         }
-        val fs = GLES32.glCreateShader(GLES32.GL_FRAGMENT_SHADER).apply {
-            GLES32.glShaderSource(this, fsSrc)
-            GLES32.glCompileShader(this)
+        val vs = sh(GLES32.GL_VERTEX_SHADER, vsSrc)
+        val fs = sh(GLES32.GL_FRAGMENT_SHADER, fsSrc)
+        if (vs == 0 || fs == 0) return 0
+        val p = GLES32.glCreateProgram()
+        GLES32.glAttachShader(p, vs)
+        GLES32.glAttachShader(p, fs)
+        GLES32.glLinkProgram(p)
+        val ok = IntArray(1)
+        GLES32.glGetProgramiv(p, GLES32.GL_LINK_STATUS, ok, 0)
+        if (ok[0] == 0) {
+            Log.e(TAG, "$tag link: ${GLES32.glGetProgramInfoLog(p)}")
+            return 0
         }
-        val prog = GLES32.glCreateProgram()
-        GLES32.glAttachShader(prog, vs)
-        GLES32.glAttachShader(prog, fs)
-        GLES32.glLinkProgram(prog)
         GLES32.glDeleteShader(vs)
         GLES32.glDeleteShader(fs)
-        return prog
+        return p
     }
+
+    private fun u1(p: Int, n: String, v: Float) {
+        GLES32.glUniform1f(GLES32.glGetUniformLocation(p, n), v)
+    }
+
+    private fun u2(p: Int, n: String, a: Float, b: Float) {
+        GLES32.glUniform2f(GLES32.glGetUniformLocation(p, n), a, b)
+    }
+
+    private val zero4 = floatArrayOf(0f, 0f, 0f, 0f)
+
+    private val IDENT = floatArrayOf(
+        1f, 0f, 0f, 0f,
+        0f, 1f, 0f, 0f,
+        0f, 0f, 1f, 0f,
+        0f, 0f, 0f, 1f
+    )
 }
 
-private const val DROP_PHYSICS_CS = """#version 320 es
-layout(local_size_x = 64, local_size_y = 1, local_size_z = 1) in;
+private const val PHYSICS_CS = """#version 320 es
+layout(local_size_x = 64) in;
 
-struct Drop {
-    vec4 posVol;
-    vec4 velState;
-};
+struct D { vec4 p; vec4 v; };
+layout(std430, binding = 0) buffer B { D d[]; };
+layout(rgba16f, binding = 1) uniform image2D film;
 
-layout(std430, binding = 0) buffer DropBuffer {
-    Drop drops[];
-};
-
-layout(rgba16f, binding = 1) uniform image2D uHeightField;
-
-uniform vec2 uSimSize;
-uniform float uPxPerMeter;
+uniform vec2 uSim;
 uniform float uDt;
 uniform float uTime;
 
-const float RHO_W = 998.0;
+const float GRAV = 9.81;
 const float SIGMA = 0.0728;
-const float MU_W  = 0.001002;
-const float G_ACC = 9.81;
-const float LAMBDA_T = 1.0e-8;
-const float COS_R_A = 0.49;
-const float EVAP_DIFF = 2.8e-10;
+const float MU = 0.001;
+
+uint rngState;
+
+float rnd() {
+    rngState = rngState * 747796405u + 2891336453u;
+    uint w = ((rngState >> ((rngState >> 28u) + 4u)) ^ rngState) * 277803737u;
+    return float((w >> 22u) ^ w) / 4294967296.0;
+}
 
 void main() {
-    uint idx = gl_GlobalInvocationID.x;
-    if (idx >= drops.length()) return;
+    uint i = gl_GlobalInvocationID.x;
+    if (i >= d.length()) return;
+    rngState = uint(i) * 9781u + uint(uTime * 60.0);
 
-    Drop d = drops[idx];
-    if (d.velState.w < 0.5) return;
+    D drop = d[i];
+    if (drop.v.w < 0.5) return;
 
-    float vol = d.posVol.z;
-    float rCurvM = pow(max(0.0, vol / 1.35), 1.0 / 3.0);
-    float aM = max(1e-6, rCurvM * 0.73);
-    float aPx = aM * uPxPerMeter;
+    float rPx = drop.p.w;
+    float rM = rPx / 15000.0;
+    float vol = 1.35 * rM * rM * rM;
+    float mass = 998.0 * vol;
 
-    float mass = RHO_W * vol;
-    float fGrav = mass * G_ACC;
-    float fs = 1.0 + 0.30 * sin(d.posVol.x * 0.015) * cos(d.posVol.y * 0.015);
-    float fPin = 3.14159265 * aM * SIGMA * COS_R_A * fs;
+    float drive = mass * GRAV;
+    float pinBase = 3.14159 * 2.0 * rM * SIGMA * 0.49;
+    float defect = 1.0 + 0.32 * sin(drop.p.x * 0.013) * cos(drop.p.y * 0.011);
+    float pin = pinBase * defect;
 
-    float uSpeed = length(d.velState.xy);
-    float lnTerm = log(max(2.0, aM / LAMBDA_T));
-    float visc = 3.6 * MU_W * aM * lnTerm * 85.0;
-
-    if (fGrav > fPin) {
-        float fNetY = (fGrav - fPin * 0.90) - visc * d.velState.y;
-        float gradX = sin(d.posVol.x * 0.015 - 0.15) - sin(d.posVol.x * 0.015 + 0.15);
-        float fNetX = gradX * SIGMA * aM * 2.2 - visc * 1.6 * d.velState.x;
-        d.velState.y = clamp(d.velState.y + (fNetY / max(mass, 1e-9)) * uDt, 0.003, 0.045);
-        d.velState.x = clamp(d.velState.x + (fNetX / max(mass, 1e-9)) * uDt, -0.014, 0.014);
+    if (drive > pin) {
+        float net = (drive - pin * 0.88);
+        float drag = 3.6 * MU * rM * 12.0 * drop.v.y + net * 0.24;
+        drop.v.y = clamp(drop.v.y + (net / max(mass, 1e-12)) * uDt * 0.55, 0.5, 22.0);
+        drop.v.x = clamp(drop.v.x + sin(drop.p.x * 0.02 + uTime * 0.7) * 4.0 * uDt, -4.0, 4.0);
     } else {
-        d.velState.xy *= 0.5;
+        drop.v.y *= 0.86;
     }
 
-    float dx = d.velState.x * uPxPerMeter * uDt;
-    float dy = d.velState.y * uPxPerMeter * uDt;
-    d.posVol.x = clamp(d.posVol.x + dx, aPx, uSimSize.x - aPx);
-    d.posVol.y += dy;
-    d.posVol.w = aPx;
-    d.velState.z = (uSpeed > 0.002) ? clamp(1.28 + d.velState.y * 11.5, 1.30, 1.60) : 1.0;
+    drop.p.y += drop.v.y * uDt;
+    drop.p.x += drop.v.x * uDt;
 
-    if (uSpeed > 0.002) {
-        float ca = (MU_W * uSpeed) / SIGMA;
-        float hFilm = 0.945 * aM * pow(ca, 2.0 / 3.0);
-        float dsM = length(vec2(dx, dy)) / uPxPerMeter;
-        vol = max(0.0, vol - 2.0 * aM * (hFilm * 26.0) * dsM);
+    if (drop.v.y > 0.5) {
+        float lose = (0.35 + drop.v.y * 0.10) * uDt;
+        rPx = max(4.0, rPx - lose);
     }
-    vol = max(0.0, vol - 6.28318 * aM * EVAP_DIFF * uDt);
-    d.posVol.z = vol;
+    drop.p.w = rPx;
 
-    for (uint j = 0u; j < drops.length(); j++) {
-        if (j == idx) continue;
-        Drop other = drops[j];
-        if (other.velState.w < 0.5) continue;
-        float dist = length(d.posVol.xy - other.posVol.xy);
-        if (dist < (aPx + other.posVol.w) * 0.85 && idx < j) {
-            d.posVol.z += other.posVol.z;
-            d.velState.y = max(d.velState.y, other.velState.y) * 1.45 + 0.008;
-            drops[j].velState.w = 0.0;
-        }
+    if (drop.p.y - rPx > uSim.y) {
+        drop.p.x = rnd() * uSim.x;
+        drop.p.y = -20.0 - rnd() * 80.0;
+        rPx = mix(14.0, 42.0, rnd());
+        drop.p.w = rPx;
+        drop.v.y = 0.0;
+        drop.v.x = 0.0;
     }
 
-    int rad = int(clamp(aPx * 1.15, 2.0, 56.0));
-    ivec2 c = ivec2(d.posVol.xy);
-    for (int oy = -rad; oy <= rad; oy++) {
-        for (int ox = -rad; ox <= rad; ox++) {
-            ivec2 p = c + ivec2(ox, oy);
-            if (p.x < 0 || p.y < 0 || p.x >= int(uSimSize.x) || p.y >= int(uSimSize.y)) continue;
-            vec2 q = vec2(float(ox), float(oy) / d.velState.z) / max(1.0, aPx);
-            float r2 = dot(q, q);
+    int rr = int(ceil(rPx));
+    ivec2 c = ivec2(drop.p.xy);
+    for (int oy = -rr; oy <= rr; oy += 1) {
+        for (int ox = -rr; ox <= rr; ox += 1) {
+            ivec2 q = c + ivec2(ox, oy);
+            if (q.x < 0 || q.y < 0 || q.x >= int(uSim.x) || q.y >= int(uSim.y)) continue;
+            vec2 e = vec2(float(ox), float(oy)) / rPx;
+            float r2 = dot(e, e);
             if (r2 < 1.0) {
-                float hCap = sqrt(1.0 - r2) * clamp(aPx / 32.0, 0.25, 1.5);
-                vec4 cur = imageLoad(uHeightField, p);
-                cur.r = max(cur.r, hCap);
-                cur.g = max(cur.g, 1.0);
-                imageStore(uHeightField, p, cur);
+                float cap = sqrt(1.0 - r2);
+                vec4 cur = imageLoad(film, q);
+                cur.r = max(cur.r, cap);
+                cur.g = 1.0;
+                imageStore(film, q, cur);
             }
         }
     }
 
-    if (d.posVol.y - aPx > uSimSize.y || aPx < 5.0) {
-        d.posVol.y = -24.0;
-        d.velState.y = 0.0;
-        float rNew = 28.0 / uPxPerMeter;
-        d.posVol.z = 1.35 * rNew * rNew * rNew;
-    }
-    drops[idx] = d;
+    d[i] = drop;
 }
 """
 
-private const val HEIGHTFIELD_PDE_CS = """#version 320 es
-layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
+private const val FILM_PDE_CS = """#version 320 es
+layout(local_size_x = 16, local_size_y = 16) in;
 
-layout(rgba16f, binding = 0) uniform readonly image2D uHeightIn;
-layout(rgba16f, binding = 1) uniform writeonly image2D uHeightOut;
+layout(rgba16f, binding = 0) uniform readonly image2D fin;
+layout(rgba16f, binding = 1) uniform image2D fout;
 
 uniform float uDt;
 
 void main() {
     ivec2 p = ivec2(gl_GlobalInvocationID.xy);
-    ivec2 sz = imageSize(uHeightIn);
+    ivec2 sz = imageSize(fin);
     if (p.x >= sz.x || p.y >= sz.y) return;
 
-    vec4 c = imageLoad(uHeightIn, p);
-    vec4 l = imageLoad(uHeightIn, max(ivec2(0), p - ivec2(1, 0)));
-    vec4 r = imageLoad(uHeightIn, min(sz - 1, p + ivec2(1, 0)));
-    vec4 u = imageLoad(uHeightIn, max(ivec2(0), p - ivec2(0, 1)));
-    vec4 d = imageLoad(uHeightIn, min(sz - 1, p + ivec2(0, 1)));
+    vec4 c = imageLoad(fin, p);
+    vec4 l = imageLoad(fin, clamp(p - ivec2(1, 0), ivec2(0), sz - 1));
+    vec4 r = imageLoad(fin, clamp(p + ivec2(1, 0), ivec2(0), sz - 1));
+    vec4 u = imageLoad(fin, clamp(p - ivec2(0, 1), ivec2(0), sz - 1));
+    vec4 dn = imageLoad(fin, clamp(p + ivec2(0, 1), ivec2(0), sz - 1));
 
-    float laplacian = (l.r + r.r + u.r + d.r) * 0.25 - c.r;
-    float vel = c.b + laplacian * 16.0 * uDt;
-    vel *= exp(-3.6 * uDt);
-    float nextH = max(0.0, c.r + vel * uDt - 0.042 * uDt);
+    float lap = (l.r + r.r + u.r + dn.r) * 0.25 - c.r;
+    float vel = c.b + lap * 14.0 * uDt;
+    vel *= exp(-2.8 * uDt);
+    float h = max(0.0, c.r + vel * uDt - 0.030 * uDt);
 
-    imageStore(uHeightOut, p, vec4(nextH, c.g * exp(-0.045 * uDt), vel, 1.0));
-}
-"""
-
-private const val CLEAR_CAUSTICS_CS = """#version 320 es
-layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
-layout(r32i, binding = 0) uniform writeonly iimage2D uCausticBuf;
-void main() {
-    ivec2 p = ivec2(gl_GlobalInvocationID.xy);
-    ivec2 sz = imageSize(uCausticBuf);
-    if (p.x >= sz.x || p.y >= sz.y) return;
-    imageStore(uCausticBuf, p, ivec4(0));
-}
-"""
-
-private const val CAUSTICS_PHOTON_CS = """#version 320 es
-layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
-
-layout(rgba16f, binding = 0) uniform readonly image2D uHeightIn;
-layout(r32i, binding = 1) uniform iimage2D uCausticBuf;
-
-void splatPhoton(ivec2 sz, vec2 pos, int bitShift) {
-    ivec2 px = ivec2(clamp(pos, vec2(0.0), vec2(sz - 1)));
-    imageAtomicAdd(uCausticBuf, px, 4 << bitShift);
-}
-
-void main() {
-    ivec2 p = ivec2(gl_GlobalInvocationID.xy);
-    ivec2 sz = imageSize(uHeightIn);
-    if (p.x >= sz.x || p.y >= sz.y) return;
-
-    float hC = imageLoad(uHeightIn, p).r;
-    if (hC < 0.02) return;
-
-    float hL = imageLoad(uHeightIn, max(ivec2(0), p - ivec2(1, 0))).r;
-    float hR = imageLoad(uHeightIn, min(sz - 1, p + ivec2(1, 0))).r;
-    float hU = imageLoad(uHeightIn, max(ivec2(0), p - ivec2(0, 1))).r;
-    float hD = imageLoad(uHeightIn, min(sz - 1, p + ivec2(0, 1))).r;
-
-    vec3 N = normalize(vec3((hL - hR) * 4.5, (hU - hD) * 4.5, 1.0));
-    vec3 L = normalize(vec3(0.45, -0.55, -0.70));
-    float dist = hC * 18.0 + 12.0;
-
-    vec3 rR = refract(L, N, 1.0 / 1.331);
-    vec3 rG = refract(L, N, 1.0 / 1.333);
-    vec3 rB = refract(L, N, 1.0 / 1.338);
-
-    splatPhoton(sz, vec2(p) + (rR.xy / min(-0.2, rR.z)) * dist, 20);
-    splatPhoton(sz, vec2(p) + (rG.xy / min(-0.2, rG.z)) * dist, 10);
-    splatPhoton(sz, vec2(p) + (rB.xy / min(-0.2, rB.z)) * dist, 0);
+    imageStore(fout, p, vec4(h, c.g * exp(-0.040 * uDt), vel, 1.0));
 }
 """
 
 private const val FULLSCREEN_VS = """#version 320 es
-out vec2 vUv;
+out vec2 vPx;
+uniform vec2 uRes;
 void main() {
-    vec2 pos = vec2((gl_VertexID << 1) & 2, gl_VertexID & 2);
-    vUv = pos;
+    vec2 pos = vec2(float((gl_VertexID << 1) & 2), float(gl_VertexID & 2));
+    vPx = pos * uRes;
     gl_Position = vec4(pos * 2.0 - 1.0, 0.0, 1.0);
 }
 """
 
-private const val FINAL_OPTICS_FS = """#version 320 es
+private const val COMPOSITE_FS = """#version 320 es
 #extension GL_OES_EGL_image_external_essl3 : require
 precision highp float;
 
-in vec2 vUv;
-out vec4 fragColor;
+in vec2 vPx;
+out vec4 outColor;
 
-uniform samplerExternalOES uUiTex;
-uniform sampler2D uHeightTex;
-layout(r32i, binding = 2) uniform readonly iimage2D uCausticBuf;
-uniform vec2 uResolution;
-uniform float uGlassThicknessPx;
+uniform samplerExternalOES uUi;
+uniform sampler2D uFilm;
+uniform mat4 uStMat;
+uniform vec2 uRes;
 uniform float uTime;
 
-float hash12(vec2 p) {
+vec2 uiUv(vec2 px) {
+    vec2 uv = px / uRes;
+    return clamp((uStMat * vec4(uv, 0.0, 1.0)).xy, vec2(0.001), vec2(0.999));
+}
+
+float h12(vec2 p) {
     vec3 p3 = fract(vec3(p.xyx) * 0.1031);
     p3 += dot(p3, p3.yzx + 33.33);
     return fract((p3.x + p3.y) * p3.z);
 }
 
-vec2 hash22(vec2 p) {
+vec2 h22(vec2 p) {
     vec3 p3 = fract(vec3(p.xyx) * vec3(0.1031, 0.1030, 0.0973));
     p3 += dot(p3, p3.yzx + 33.33);
     return fract((p3.xx + p3.yz) * p3.zy);
 }
 
-float valueNoise(vec2 p) {
-    vec2 i = floor(p);
-    vec2 f = fract(p);
+float n2(vec2 p) {
+    vec2 i = floor(p), f = fract(p);
     vec2 u = f * f * (3.0 - 2.0 * f);
-    return mix(
-        mix(hash12(i), hash12(i + vec2(1.0, 0.0)), u.x),
-        mix(hash12(i + vec2(0.0, 1.0)), hash12(i + vec2(1.0, 1.0)), u.x),
-        u.y
-    );
+    return mix(mix(h12(i), h12(i + vec2(1, 0)), u.x), mix(h12(i + vec2(0, 1)), h12(i + vec2(1, 1)), u.x), u.y);
 }
 
-float fbmClouds(vec2 p) {
-    float v = 0.0;
-    float amp = 0.5;
-    for (int i = 0; i < 4; i++) {
-        v += amp * valueNoise(p);
-        p = p * 2.03 + vec2(13.7, 7.3);
-        amp *= 0.5;
-    }
+float fbm(vec2 p) {
+    float v = 0.0, a = 0.5;
+    for (int i = 0; i < 4; i++) { v += a * n2(p); p = p * 2.03 + vec2(13.7, 7.3); a *= 0.5; }
     return v;
 }
 
-float D_GGX(float NdotH, float roughness) {
-    float a = roughness * roughness;
-    float a2 = a * a;
-    float d = (NdotH * NdotH) * (a2 - 1.0) + 1.0;
-    return a2 / (3.14159265 * d * d);
-}
-
-vec3 sampleRainyEnv(vec3 R) {
+vec3 env(vec3 R) {
     float up = clamp(-R.y * 0.5 + 0.5, 0.0, 1.0);
-    vec3 sky = mix(vec3(0.20, 0.24, 0.30), vec3(0.75, 0.82, 0.89), smoothstep(0.18, 0.52, up));
-    sky = mix(sky, vec3(0.42, 0.51, 0.62), smoothstep(0.50, 0.96, up));
-    if (R.y < 0.05) {
-        vec2 uv = R.xz / max(0.18, -R.y + 0.22) + vec2(uTime * 0.018, uTime * 0.008);
-        float c = fbmClouds(uv * 1.4);
-        sky = mix(sky, mix(vec3(0.48, 0.54, 0.62), vec3(0.84, 0.89, 0.94), smoothstep(0.32, 0.78, c)), 0.65);
+    vec3 sky = mix(vec3(0.22, 0.26, 0.33), vec3(0.76, 0.83, 0.90), smoothstep(0.20, 0.55, up));
+    if (R.y < 0.06) {
+        float c = fbm(R.xz / max(0.2, -R.y + 0.24) * 1.3 + uTime * 0.02);
+        sky = mix(sky, mix(vec3(0.50, 0.56, 0.64), vec3(0.85, 0.90, 0.95), smoothstep(0.35, 0.75, c)), 0.6);
     }
-    float sunGlow = pow(max(dot(R, normalize(vec3(-0.58, 0.68, 0.45))), 0.0), 10.0);
-    return sky + vec3(0.24, 0.27, 0.30) * sunGlow;
-}
-
-vec3 unpackCaustic(ivec2 px) {
-    int packed = imageLoad(uCausticBuf, clamp(px, ivec2(0), ivec2(uResolution) - 1)).r;
-    float r = float((packed >> 20) & 0x3FF) / 32.0;
-    float g = float((packed >> 10) & 0x3FF) / 32.0;
-    float b = float(packed & 0x3FF) / 32.0;
-    return clamp(vec3(r, g, b), 0.0, 1.6);
-}
-
-vec3 sampleSmoothCaustics(ivec2 px) {
-    vec3 sum = vec3(0.0);
-    for (int dy = -1; dy <= 1; dy++) {
-        for (int dx = -1; dx <= 1; dx++) {
-            float w = (dx == 0 && dy == 0) ? 0.25 : ((abs(dx) + abs(dy) == 1) ? 0.125 : 0.0625);
-            sum += unpackCaustic(px + ivec2(dx, dy)) * w;
-        }
-    }
-    return sum;
-}
-
-vec3 traceMultiBounceDroplet(vec3 V_in, vec3 N, float nWater, float R_px) {
-    float nGlass = 1.50;
-    vec3 ray = refract(V_in, N, 1.0 / nWater);
-    vec3 rayGlass = refract(ray, vec3(0.0, 0.0, -1.0), nWater / nGlass);
-    vec3 rayExit = refract(rayGlass, vec3(0.0, 0.0, -1.0), nGlass);
-    if (dot(rayExit, rayExit) < 0.0001) {
-        vec3 bounce1 = reflect(ray, vec3(0.0, 0.0, -1.0));
-        vec3 exit2 = refract(bounce1, -N, nWater);
-        if (dot(exit2, exit2) < 0.0001) return vec3(0.0, 0.0, 1.0);
-        return vec3((exit2.xy / max(0.2, abs(exit2.z))) * (R_px * 1.8), 0.55);
-    }
-    vec2 glassShift = (rayGlass.xy / min(-0.25, rayGlass.z)) * uGlassThicknessPx;
-    vec2 airShift = (rayExit.xy / min(-0.16, rayExit.z)) * (R_px * 3.85);
-    return vec3(glassShift + airShift, 0.0);
-}
-
-vec3 renderStaticMicroDroplet(vec2 fragPx, vec2 centerPx, float aPx, vec3 baseCol) {
-    vec2 q = (fragPx - centerPx) / aPx;
-    float d = length(q);
-    if (d > 1.15) return baseCol;
-    if (d >= 1.0) {
-        float rim = smoothstep(1.35, 0.0, (d - 1.0) * aPx);
-        return mix(baseCol, vec3(0.95, 0.98, 1.0), rim * 0.42);
-    }
-    float z = sqrt(max(0.0006, 1.0 - d * d));
-    vec3 N = normalize(vec3(q.x, -q.y, z));
-    vec3 V_in = vec3(0.0, 0.0, -1.0);
-    vec3 V_out = vec3(0.0, 0.0, 1.0);
-
-    vec3 trR = traceMultiBounceDroplet(V_in, N, 1.331, aPx * 1.15);
-    vec3 trG = traceMultiBounceDroplet(V_in, N, 1.333, aPx * 1.15);
-    vec3 trB = traceMultiBounceDroplet(V_in, N, 1.338, aPx * 1.15);
-    float tir = clamp((trR.z + trG.z + trB.z) * 0.3333, 0.0, 1.0);
-
-    vec2 uvR = clamp((centerPx + trR.xy) / uResolution, vec2(0.001), vec2(0.999));
-    vec2 uvG = clamp((centerPx + trG.xy) / uResolution, vec2(0.001), vec2(0.999));
-    vec2 uvB = clamp((centerPx + trB.xy) / uResolution, vec2(0.001), vec2(0.999));
-    vec3 refracted = vec3(
-        texture(uUiTex, vec2(uvR.x, 1.0 - uvR.y)).r,
-        texture(uUiTex, vec2(uvG.x, 1.0 - uvG.y)).g,
-        texture(uUiTex, vec2(uvB.x, 1.0 - uvB.y)).b
-    );
-
-    vec3 col = refracted * mix(1.12, 1.28, 1.0 - d * 0.65);
-    vec3 L = normalize(vec3(-0.62, 0.68, 0.39));
-    col *= (1.0 + dot(N, L) * 0.16);
-    float fresnel = 0.02006 + (1.0 - 0.02006) * pow(1.0 - clamp(dot(N, V_out), 0.0, 1.0), 5.0);
-    col = mix(col, sampleRainyEnv(reflect(-V_out, N)), clamp(fresnel * 0.68 + tir * 0.72, 0.0, 0.92));
-
-    float ggx = D_GGX(max(dot(N, normalize(L + V_out)), 0.0), 0.055) * 0.045;
-    col += vec3(1.0) * (min(1.5, ggx) + smoothstep(0.14, 0.01, length(q - vec2(-0.36, -0.38))) * 0.55);
-
-    float rim = smoothstep(1.8, 0.0, abs((1.0 - d) * aPx - 0.5));
-    return mix(col, vec3(0.97, 0.99, 1.0), rim * 0.88);
+    return sky;
 }
 
 void main() {
-    vec2 uiUv = vec2(vUv.x, 1.0 - vUv.y);
-    vec2 fragPx = vUv * uResolution;
-    vec4 base = texture(uUiTex, uiUv);
-    base.rgb *= vec3(0.986, 0.996, 1.020);
-    vec3 col = base.rgb;
+    vec4 filmC = texture(uFilm, vPx / uRes);
+    float h = filmC.r;
+    float wet = filmC.g;
 
-    ivec2 pxCoord = ivec2(clamp(fragPx, vec2(0.0), uResolution - 1.0));
-    vec3 rgbCaustic = sampleSmoothCaustics(pxCoord);
-    col *= (vec3(1.0) + rgbCaustic * 0.24);
+    vec3 base = texture(uUi, uiUv(vPx)).rgb;
+    base *= vec3(0.988, 0.997, 1.016);
 
-    for (int i = 0; i < 6; i++) {
-        float seed = float(i) * 19.37;
-        float speed = mix(1.0, 2.0, hash12(vec2(seed, 1.0)));
-        float tCycle = fract(uTime * speed + hash12(vec2(seed, 2.0)));
-        float xPos = hash12(vec2(floor(uTime * speed + hash12(vec2(seed, 2.0))), seed)) * uResolution.x;
-        float yTip = tCycle * (uResolution.y + 150.0);
-        float len = mix(60.0, 130.0, hash12(vec2(seed, 3.0)));
-        float dx = abs(fragPx.x - xPos);
-        if (dx < 1.35) {
-            float dy = yTip - (uResolution.y - fragPx.y);
-            if (dy >= 0.0 && dy <= len) {
-                float fade = smoothstep(0.0, 0.14, dy / len) * smoothstep(1.0, 0.08, dy / len) * smoothstep(1.35, 0.15, dx);
-                col += vec3(0.065, 0.075, 0.095) * fade;
+    vec3 col = base;
+
+    if (h > 0.012) {
+        vec2 t = 2.0 / uRes;
+        float hL = texture(uFilm, vPx / uRes - vec2(t.x, 0.0)).r;
+        float hR = texture(uFilm, vPx / uRes + vec2(t.x, 0.0)).r;
+        float hD = texture(uFilm, vPx / uRes - vec2(0.0, t.y)).r;
+        float hU = texture(uFilm, vPx / uRes + vec2(0.0, t.y)).r;
+
+        vec3 N = normalize(vec3((hL - hR) * 3.2, (hU - hD) * 3.2, 1.0));
+
+        float bend = h * 22.0;
+        vec2 dir = -N.xy * bend;
+        vec3 refr = texture(uUi, uiUv(vPx + dir)).rgb;
+
+        float edge = smoothstep(0.012, 0.05, h) * (1.0 - smoothstep(0.12, 0.32, h));
+        refr *= mix(1.0, 1.35, edge * 0.6 + h * 0.5);
+
+        float fres = 0.02 + 0.98 * pow(1.0 - clamp(N.z, 0.0, 1.0), 4.0);
+        vec3 skyRef = env(reflect(vec3(0.0, 0.0, -1.0), N));
+        vec3 wetCol = mix(refr, skyRef, clamp(fres * 0.65, 0.0, 0.55));
+
+        float hl = pow(max(dot(N, normalize(vec3(-0.55, 0.62, 0.56))), 0.0), 60.0);
+        wetCol += vec3(1.0, 0.99, 0.97) * hl * 1.3;
+
+        float caustic = pow(clamp(h * 2.6, 0.0, 1.0), 3.0) * (1.0 - smoothstep(0.5, 0.95, h));
+        wetCol += vec3(0.9, 0.97, 1.0) * caustic * 0.28;
+
+        col = mix(col, wetCol, smoothstep(0.012, 0.06, h));
+    }
+
+    if (wet > 0.02 && h < 0.012) {
+        float trailGlow = wet * (1.0 - smoothstep(0.0, 0.012, h));
+        col += vec3(0.05, 0.07, 0.09) * trailGlow;
+        col = mix(col, col * 1.14 + vec3(0.02, 0.03, 0.04), trailGlow * 0.4);
+    }
+
+    for (int k = 0; k < 5; k++) {
+        float fk = float(k);
+        float sp = 1.4 + h12(vec2(fk * 7.7, 3.1)) * 1.8;
+        float cyc = fract(uTime * sp * 0.4 + h12(vec2(fk * 3.3, 9.1)));
+        float xp = h12(vec2(floor(uTime * sp * 0.4 + h12(vec2(fk, 2.2))), fk * 11.3)) * uRes.x;
+        float tip = cyc * (uRes.y + 160.0);
+        float len = 70.0 + h12(vec2(fk, 5.5)) * 90.0;
+        float dx = abs(vPx.x - xp);
+        if (dx < 1.6) {
+            float dy = tip - (uRes.y - vPx.y);
+            if (dy > 0.0 && dy < len) {
+                float m = smoothstep(0.0, 0.2, dy / len) * (1.0 - smoothstep(0.7, 1.0, dy / len));
+                col += vec3(0.10, 0.12, 0.14) * m * smoothstep(1.6, 0.2, dx);
             }
         }
     }
 
-    float cellSize = 44.0;
-    vec2 grid = floor(fragPx / cellSize);
-    for (int dy = -1; dy <= 1; dy++) {
-        for (int dx = -1; dx <= 1; dx++) {
-            vec2 cell = grid + vec2(float(dx), float(dy));
-            vec2 rnd = hash22(cell + vec2(11.0, 19.0));
-            if (rnd.x > 0.16) continue;
-            vec2 center = (cell + 0.5) * cellSize + (hash22(cell * 5.7 + 11.0) - 0.5) * (cellSize * 0.76);
-            float hSweep = texture(uHeightTex, center / uResolution).r;
-            if (hSweep > 0.06) continue;
-            float r = mix(5.0, 12.0, hash12(cell * 3.1 + 11.0)) * (1.0 + 0.015 * sin(uTime * 1.35 + rnd.y * 6.283));
-            if (length(fragPx - center) <= r * 1.15) {
-                col = renderStaticMicroDroplet(fragPx, center, r, col);
-            }
-        }
-    }
-
-    float hC = texture(uHeightTex, vUv).r;
-    if (hC > 0.015) {
-        vec2 texel = 1.0 / uResolution;
-        float hL = texture(uHeightTex, vUv - vec2(texel.x * 2.0, 0.0)).r;
-        float hR = texture(uHeightTex, vUv + vec2(texel.x * 2.0, 0.0)).r;
-        float hD = texture(uHeightTex, vUv - vec2(0.0, texel.y * 2.0)).r;
-        float hU = texture(uHeightTex, vUv + vec2(0.0, texel.y * 2.0)).r;
-
-        vec3 N = normalize(vec3((hL - hR) * 4.5, (hU - hD) * 4.5, 1.0));
-        vec3 V_in = vec3(0.0, 0.0, -1.0);
-        vec3 V_out = vec3(0.0, 0.0, 1.0);
-        vec3 L = normalize(vec3(-0.62, 0.68, 0.39));
-
-        vec3 trR = traceMultiBounceDroplet(V_in, N, 1.331, hC * 28.0);
-        vec3 trG = traceMultiBounceDroplet(V_in, N, 1.333, hC * 28.0);
-        vec3 trB = traceMultiBounceDroplet(V_in, N, 1.338, hC * 28.0);
-        float tir = clamp((trR.z + trG.z + trB.z) * 0.3333, 0.0, 1.0);
-
-        vec2 uvR = clamp(uiUv + trR.xy / uResolution, vec2(0.002), vec2(0.998));
-        vec2 uvG = clamp(uiUv + trG.xy / uResolution, vec2(0.002), vec2(0.998));
-        vec2 uvB = clamp(uiUv + trB.xy / uResolution, vec2(0.002), vec2(0.998));
-
-        vec3 refractCol = vec3(
-            texture(uUiTex, uvR).r,
-            texture(uUiTex, uvG).g,
-            texture(uUiTex, uvB).b
-        );
-
-        vec3 beer = vec3(exp(-0.045 * hC), exp(-0.015 * hC), exp(-0.005 * hC));
-        vec3 wetCol = refractCol * beer * (vec3(1.12) + rgbCaustic * 0.32);
-
-        float fresnel = 0.02006 + (1.0 - 0.02006) * pow(1.0 - clamp(dot(N, V_out), 0.0, 1.0), 5.0);
-        wetCol = mix(wetCol, sampleRainyEnv(reflect(-V_out, N)), clamp(fresnel * 0.72 + tir * 0.70, 0.0, 0.92));
-
-        float ggx = D_GGX(max(dot(N, normalize(L + V_out)), 0.0), 0.055) * 0.045;
-        wetCol += vec3(1.0) * min(1.5, ggx);
-
-        float rim = smoothstep(0.06, 0.015, hC) * smoothstep(0.008, 0.03, hC);
-        wetCol = mix(wetCol, vec3(0.96, 0.99, 1.0), rim * 0.80);
-
-        col = mix(col, wetCol, smoothstep(0.015, 0.07, hC));
-    }
-
-    fragColor = vec4(col, base.a);
+    outColor = vec4(col, 1.0);
 }
 """
