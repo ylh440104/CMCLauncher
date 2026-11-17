@@ -29,6 +29,7 @@ import android.view.WindowManager
 import android.widget.Toast
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
@@ -70,7 +71,7 @@ import com.cmc.launcher.ui.screens.NestedNavKey
 import com.cmc.launcher.ui.screens.NormalNavKey
 import com.cmc.launcher.ui.screens.content.elements.Background
 import com.cmc.launcher.ui.screens.content.elements.LaunchGameOperation
-import com.cmc.launcher.ui.screens.content.elements.RainGlassEffect
+import com.cmc.launcher.ui.screens.content.elements.rainShaderEffect
 import com.cmc.launcher.ui.screens.content.elements.TitleTaskFlowDialog
 import com.cmc.launcher.ui.screens.content.navigateToLogView
 import com.cmc.launcher.ui.screens.content.navigateToWeb
@@ -313,6 +314,11 @@ class MainActivity : BaseAppCompatActivity() {
                 ObserveFullScreenSetting(AllSettings.launcherFullScreen.state)
 
                 val guides = rememberAppGuides(eventViewModel)
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .rainShaderEffect()
+                ) {
                 GuideHost(
                     guides.mainScreen,
                     nextTip = { NextTipLabel(it) }
@@ -330,11 +336,6 @@ class MainActivity : BaseAppCompatActivity() {
                             errorViewModel.showError(it)
                         }
                     )
-                    RainGlassEffect(
-                        modifier = Modifier.fillMaxSize(),
-                        enabled = AllSettings.liquidGlass.state
-                    )
-
                     //节日彩蛋效果层
                     FestivalEffects(
                         modifier = Modifier.fillMaxSize(),
@@ -389,7 +390,7 @@ class MainActivity : BaseAppCompatActivity() {
                         )
                     }
                 }
-
+                }
                 ModpackImportOperation(
                     operation = modpackImportViewModel.importOperation,
                     changeOperation = { modpackImportViewModel.importOperation = it },
