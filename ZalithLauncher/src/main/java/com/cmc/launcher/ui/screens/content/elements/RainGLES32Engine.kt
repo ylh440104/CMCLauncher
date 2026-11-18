@@ -1020,54 +1020,109 @@ float D_GGX(float NdotH, float roughness) {
     return a2 / (3.14159265 * d * d);
 }
 
-vec2 dropFieldNrm(vec2 uv, float scale, float speed) {
-    vec2 p = vec2(uv.x, uv.y + uTime * speed) * scale;
-    vec2 id = floor(p);
-    vec2 f = fract(p);
-    vec2 nrm = vec2(0.0);
-    float cover = 0.0;
-    for (int j = -1; j <= 1; j++) {
-        for (int i = -1; i <= 1; i++) {
-            vec2 g = vec2(float(i), float(j));
-            vec2 h = hash22(id + g);
-            vec2 h2 = hash22(id + g + vec2(37.1, 91.7));
-            vec2 c = g + vec2(0.5) + (h - vec2(0.5)) * 0.62;
-            float r = 0.14 + 0.30 * h2.x;
-            vec2 d = f - c;
-            d.y /= (1.0 + 0.75 * h2.y);
-            float dist = length(d) / r;
-            if (dist < 1.0) {
-                float prof = sqrt(max(0.0, 1.0 - dist * dist));
-                nrm += normalize(d + vec2(1.0e-5)) * prof;
-                cover = max(cover, smoothstep(1.0, 0.72, dist) * prof);
-            }
-        }
+float hfS(float a, float b, float t) {
+    return smoothstep(a, b, t);
+}
+vec3 hfN13(float p) {
+    vec3 p3 = fract(vec3(p) * vec3(0.1031, 0.11369, 0.13787));
+    p3 += dot(p3, p3.yzx + 19.19);
+    return fract(vec3((p3.x + p3.y) * p3.z, (p3.x + p3.z) * p3.y, (p3.y + p3.z) * p3.x));
+}
+float hfN(float t) {
+    return fract(sin(t * 12345.564) * 7658.76);
+}
+float hfSaw(float b, float t) {
+    return hfS(0.0, b, t) * hfS(1.0, b, t);
+}
+vec2 hfDropLayer(vec2 uv, float t) {
+    vec2 UV = uv;
+    vec2 uvMod = uv;
+    uvMod.y += t;
+    vec2 a = vec2(6.0, 1.0);
+    vec2 grid = a * 2.0;
+    vec2 id = floor(uvMod * grid);
+    float colShift = hfN(id.x);
+    uvMod.y += colShift;
+    id = floor(uvMod * grid);
+    vec3 n = hfN13(id.x * 35.2 + id.y * 2376.1);
+    vec2 st = fract(uvMod * grid) - vec2(0.5, 0.0);
+    float x = n.x - 0.5;
+    float y = UV.y * 20.0;
+    float wiggle = sin(y + sin(y));
+    x = x + wiggle * (0.5 - abs(x)) * (n.z - 0.5);
+    x = x * 0.7;
+    float scaledT = t / 0.75;
+    float ti = fract(scaledT + n.z);
+    bool useSaw = n.y > 0.5;
+    float speed = 0.5 + n.x;
+    if (useSaw) {
+        y = (hfSaw(0.85, ti) - 0.5) * 0.9 + 0.5;
+    } else {
+        y = fract(ti * speed) * 0.9 + 0.05;
     }
-    if (cover < 0.001) return vec3(0.0);
-    return vec3(cover, nrm);
+    vec2 p = vec2(x, y);
+    float d = length((st - p) * a.yx);
+    float mainDrop = hfS(0.4, 0.0, d);
+    float r = sqrt(hfS(1.0, y, st.y));
+    float cd = abs(st.x - x);
+    float trail = hfS(0.23 * r, 0.15 * r * r, cd);
+    float trailFront = hfS(-0.02, 0.02, st.y - y);
+    trail = trail * trailFront * r * r;
+    float y2 = UV.y;
+    float trail2 = hfS(0.2 * r, 0.0, cd);
+    float droplets = max(0.0, sin(y2 * (1.0 - y2) * 120.0) - st.y) * trail2 * trailFront * n.z;
+    y2 = fract(y2 * 10.0) + (st.y - 0.5);
+    float dd = length(st - vec2(x, y2));
+    droplets = hfS(0.3, 0.0, dd);
+    float m = mainDrop + droplets * r * trailFront;
+    return vec2(m, trail);
+}
+float hfStaticDrops(vec2 uv, float t) {
+    vec2 uvMod = uv * 40.0;
+    vec2 id = floor(uvMod);
+    uvMod = fract(uvMod) - 0.5;
+    vec3 n = hfN13(id.x * 107.45 + id.y * 3543.654);
+    vec2 p = (n.xy - 0.5) * 0.7;
+    float d = length(uvMod - p);
+    float fade = hfSaw(0.025, fract(t + n.z));
+    float c = hfS(0.3, 0.0, d) * fract(n.z * 10.0) * fade;
+    return c;
+}
+vec2 hfDrops(vec2 uv, float t, float l0, float l1, float l2) {
+    float s = hfStaticDrops(uv, t) * l0;
+    vec2 m1 = hfDropLayer(uv, t) * l1;
+    vec2 m2 = hfDropLayer(uv * 1.85, t) * l2;
+    float c = s + m1.x + m2.x;
+    c = hfS(0.3, 1.0, c);
+    return vec2(c, max(m1.y * l0, m2.y * l1));
+}
+vec2 centeredUVToUv(vec2 cuv) {
+    vec2 px = cuv * uResolution.y + 0.5 * uResolution;
+    return px / uResolution;
 }
 
-vec3 dropLayers(vec3 baseCol, vec2 uv) {
-    vec3 result = baseCol;
-    for (int k = 0; k < 2; k++) {
-        float fk = float(k);
-        float scale = mix(22.0, 44.0, fk);
-        float speed = mix(0.020, 0.009, fk);
-        vec2 offs = vec2(0.371 * fk, 0.618 * fk);
-        vec3 info = dropFieldNrm(uv + offs, scale, speed);
-        float cover = info.x;
-        if (cover > 0.001) {
-            vec2 nrm = info.yz;
-            float amp = mix(9.0, 4.0, fk);
-            vec3 lens = texture(uUiTex, uiUv(clamp(uv + nrm * amp / uResolution, vec2(0.001), vec2(0.999)))).rgb;
-            float rim = smoothstep(0.45, 1.0, cover);
-            lens *= mix(1.0, 0.94, cover);
-            lens *= mix(1.0, 0.78, rim);
-            lens += vec3(0.55, 0.58, 0.62) * pow(cover, 3.0) * mix(0.22, 0.14, fk);
-            result = mix(result, lens, clamp(cover * mix(1.6, 1.3, fk), 0.0, 1.0));
-        }
-    }
-    return result;
+vec3 hfGlass(vec3 baseCol, vec2 centeredUV, float t) {
+    float staticDrops = 1.0;
+    float layer1 = 0.8;
+    float layer2 = 0.5;
+    vec2 c = hfDrops(centeredUV, t, staticDrops, layer1, layer2);
+    float dropMask = c.x;
+    vec2 e = vec2(0.002, 0.0);
+    float cx = hfDrops(centeredUV + e, t, staticDrops, layer1, layer2).x;
+    float cy = hfDrops(centeredUV + e.yx, t, staticDrops, layer1, layer2).x;
+    vec2 n = vec2(cx - c.x, cy - c.x);
+    vec2 offset = n * 2.4;
+    vec3 col = texture(uUiTex, uiUv(clamp(centeredUVToUv(centeredUV + offset), vec2(0.001), vec2(0.999)))).rgb;
+    float normalMag = length(n) * 30.0;
+    float rimLight = hfS(0.3, 0.8, normalMag) * dropMask * 0.55;
+    col += vec3(rimLight);
+    vec2 lightDir = normalize(vec2(-0.5, -0.8));
+    float spec = max(0.0, dot(normalize(n + 0.0001), lightDir));
+    float specHighlight = pow(spec, 32.0) * dropMask * 0.6;
+    col += vec3(specHighlight);
+    float trailBlur = c.y;
+    col *= mix(1.0, 0.94, trailBlur);
+    return col;
 }
 
 vec3 sampleRainyEnv(vec3 R) {
@@ -1139,7 +1194,8 @@ void main() {
             }
         }
     }
-col = dropLayers(col, vUv);
+vec2 centeredUV = (fragPx - 0.5 * uResolution) / uResolution.y;
+    col = hfGlass(col, centeredUV, uTime * 0.2);
     float hC = texture(uHeightTex, vUv).r;
     if (hC > 0.009) {
         vec2 texel = 1.0 / uResolution;
