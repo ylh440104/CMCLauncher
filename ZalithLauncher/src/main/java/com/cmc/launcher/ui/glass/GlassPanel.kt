@@ -46,8 +46,6 @@ private val panelStyleCache: GlassStyle by lazy {
         specularIntensity(1.0f)
         specularExponent(48f)
         fresnelExponent(3.2f)
-        rimHighlight(1f, 1.4.dp, 1f)
-        edgeOutline(Color.White.copy(alpha = 0.22f), 0.8.dp)
         edgeShadow(Color.Black.copy(alpha = 0.16f))
         edgeSoftness(1.6.dp)
         ambientResponse(0.55f)
@@ -76,8 +74,6 @@ private val softStyle: GlassStyle by lazy {
         shape(RoundedCornerShape(20.dp))
         tint(Color.White.copy(alpha = 0.10f))
         specularIntensity(0.7f)
-        rimHighlight(0.8f, 1.dp, 1f)
-        edgeOutline(Color.White.copy(alpha = 0.18f), 0.7.dp)
         alpha(0.90f)
     }
 }
