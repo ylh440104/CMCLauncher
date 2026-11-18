@@ -1,5 +1,6 @@
 package com.cmc.launcher.ui.particle
 
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
@@ -56,7 +57,7 @@ fun rememberTapConfetti(): TapConfetti {
 fun TapConfettiLayer(confetti: TapConfetti, modifier: Modifier = Modifier) {
     KonfettiView(
         state = confetti.state,
-        modifier = modifier
+        modifier = modifier.fillMaxSize()
     )
 }
 
