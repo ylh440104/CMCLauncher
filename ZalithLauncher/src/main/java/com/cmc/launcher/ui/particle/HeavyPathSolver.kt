@@ -431,7 +431,7 @@ object HeavyPathSolver {
     private fun metropolis(start: Double, iters: Int): Double {
         var x = start
         var best = x
-        var seed = 0x9E3779B97F4A7C15L
+        var seed = 0x2545F4914F6CDD1DL
         var i = 0
         while (i < iters) {
             seed = seed xor (seed shl 13)
