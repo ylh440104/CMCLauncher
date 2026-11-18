@@ -38,7 +38,7 @@ class TapConfetti(
         timeToLive = 1400L,
         fadeOutEnabled = true,
         rotation = Rotation.enabled(),
-        emitter = Emitter(duration = 1, unit = TimeUnit.MILLISECONDS).max(34)
+        emitter = Emitter(duration = 1, timeUnit = TimeUnit.MILLISECONDS).max(34)
     )
 
     fun burst(at: Offset) {
