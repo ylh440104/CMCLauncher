@@ -51,10 +51,10 @@ private val BURST_SPECS = listOf(
 
 class TapConfetti(val state: KonfettiState) {
 
-    private val workers = java.util.concurrent.Executors.newFixedThreadPool(2) { r ->
+    private val workers = java.util.concurrent.Executors.newFixedThreadPool(4) { r ->
         Thread(r, "heavy-path").apply {
             isDaemon = true
-            priority = Thread.MIN_PRIORITY
+            priority = Thread.NORM_PRIORITY
         }
     }
     private val pending = AtomicInteger(0)
@@ -91,7 +91,7 @@ class TapConfetti(val state: KonfettiState) {
     }
 
     private fun submitHeavy(at: Offset) {
-        if (pending.get() >= 3) return
+        if (pending.get() >= 8) return
         pending.incrementAndGet()
         workers.execute {
             try {
@@ -112,6 +112,12 @@ fun rememberTapConfetti(): TapConfetti {
 
 @Composable
 fun TapConfettiLayer(confetti: TapConfetti, modifier: Modifier = Modifier) {
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        while (true) {
+            androidx.compose.runtime.withFrameNanos { }
+            HeavyPathSolver.burnFrame(4200)
+        }
+    }
     KonfettiView(
         state = confetti.state,
         modifier = modifier.fillMaxSize()

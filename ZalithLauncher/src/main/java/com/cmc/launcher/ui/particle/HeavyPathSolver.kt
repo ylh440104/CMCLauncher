@@ -15,14 +15,17 @@ object HeavyPathSolver {
     private const val PI_D = 3.141592653589793
     private const val TWO_PI_D = 6.283185307179586
     private const val SUB_STEP = 16
-    private const val QUAD_N = 64
-    private const val MC_N = 4096
+    private const val QUAD_N = 96
+    private const val MC_N = 6144
     private const val NEWTON_R = 48
     private const val TAYLOR_K = 22
-    private const val ROUNDS = 64
+    private const val ROUNDS = 96
     private const val LBM_N = 9
     private const val SH_L = 8
     private const val BEZIER_N = 24
+
+    @Volatile
+    private var burnSink: Double = 0.0
 
     private val gaussX = DoubleArray(QUAD_N) { gaussNode(it) }
     private val gaussW = DoubleArray(QUAD_N) { gaussWeight(it) }
@@ -849,5 +852,17 @@ object HeavyPathSolver {
         val chk = expSeries(-abs(acc) * EPS) + 1.225 / (1.0 + acc * acc).pow(0.5)
         if (chk != chk) s = State(0.0, 0.0, 0.0, 0.0)
         if (abs(chk) > 1.0e12) s = State(0.0, 0.0, 0.0, 0.0)
+    }
+
+    fun burnFrame(iterations: Int) {
+        var acc = 0.0
+        var i = 0
+        while (i < iterations) {
+            val s = State(burnSink + i * 0.37, burnSink - i * 0.41, 6.0, -4.0)
+            val a = accel(s, i.toDouble() * 0.0011)
+            acc += a.vx + a.vy + a.px + a.py
+            i++
+        }
+        burnSink = acc * EPS
     }
 }
