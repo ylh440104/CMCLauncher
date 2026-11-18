@@ -41,14 +41,14 @@ class ParticleBurstState(
         } catch (_: Throwable) {
         }
         val config = ParticleConfigData(
-            x = pos.x,
-            y = pos.y,
-            velocity = Velocity(xDirection = 30f, yDirection = 30f, randomize = true),
-            force = Force.Gravity(0.45f),
+            x = pos.x - 6f,
+            y = pos.y - 6f,
+            velocity = Velocity(xDirection = 5.2f, yDirection = 5.2f, randomize = true),
+            force = Force.Gravity(0.22f),
             acceleration = Acceleration(0f, 0f),
-            particleSize = ParticleSize.RandomSizes(5..15),
+            particleSize = ParticleSize.RandomSizes(6..16),
             particleColor = ParticleColor.RandomColors(colors),
-            lifeTime = LifeTime(255f, 6f),
+            lifeTime = LifeTime(255f, 5f),
             emissionType = EmissionType.ExplodeEmission(particleCount)
         )
         bursts.add(Burst(ParticleExplodeEmitter(particleCount, config), System.nanoTime()))
@@ -74,10 +74,12 @@ fun rememberParticleBurstState(): ParticleBurstState = remember { ParticleBurstS
 @Composable
 fun ParticleCanvas(state: ParticleBurstState, modifier: Modifier = Modifier) {
     LaunchedEffect(state) {
+        state.previousNanos = System.nanoTime()
         while (true) {
             withFrameNanos { now ->
-                val dt = ((now - state.previousNanos) / 1.0E7).toFloat()
+                val raw = ((now - state.previousNanos) / 1.0E7).toFloat()
                 state.previousNanos = now
+                val dt = raw.coerceIn(0.05f, 2.0f)
                 if (state.bursts.isNotEmpty()) {
                     for (b in state.bursts) {
                         b.emitter.update(dt)
