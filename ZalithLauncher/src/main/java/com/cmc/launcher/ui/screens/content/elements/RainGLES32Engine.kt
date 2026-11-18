@@ -1111,17 +1111,17 @@ vec3 hfGlass(vec3 baseCol, vec2 centeredUV, float t) {
     float cx = hfDrops(centeredUV + e, t, staticDrops, layer1, layer2).x;
     float cy = hfDrops(centeredUV + e.yx, t, staticDrops, layer1, layer2).x;
     vec2 n = vec2(cx - c.x, cy - c.x);
-    vec2 refrUv = clamp(centeredUVToUv(centeredUV + n * 1.6), vec2(0.001), vec2(0.999));
+    vec2 refrUv = clamp(centeredUVToUv(centeredUV + n * 1.0), vec2(0.001), vec2(0.999));
     vec3 refracted = texture(uUiTex, uiUv(refrUv)).rgb;
-    refracted *= 0.93;
+    refracted *= 0.96;
     vec3 col = mix(baseCol, refracted, dropMask);
-    float rim = smoothstep(0.25, 0.95, length(n) * 26.0);
-    col *= mix(1.0, 0.70, rim * dropMask);
+    float inner = smoothstep(0.55, 1.0, dropMask);
+    float bead = smoothstep(0.30, 0.85, length(n) * 22.0) * inner;
+    col *= mix(1.0, 0.90, bead);
     vec2 lightDir = normalize(vec2(-0.45, -0.89));
     vec2 nn = normalize(n + vec2(0.0001));
     float spec = max(0.0, dot(nn, lightDir));
-    col += vec3(0.90, 0.93, 0.97) * pow(spec, 110.0) * dropMask * 0.30;
-    col *= mix(1.0, 0.93, c.y);
+    col += vec3(0.90, 0.93, 0.97) * pow(spec, 120.0) * inner * 0.26;
     return col;
 }
 
