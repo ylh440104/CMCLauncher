@@ -55,6 +55,9 @@ import com.cmc.launcher.ui.screens.NestedNavKey
 import com.cmc.launcher.ui.screens.NormalNavKey
 import com.cmc.launcher.ui.screens.content.elements.Background
 import com.cmc.launcher.ui.screens.content.elements.RainGLES32OverlayLayout
+import com.cmc.launcher.ui.glass.LocalGlassHost
+import com.cmc.launcher.ui.glass.glassSource
+import com.cmc.launcher.ui.glass.rememberGlassHost
 import com.cmc.launcher.ui.particle.TapConfettiLayer
 import com.cmc.launcher.ui.particle.rememberTapConfetti
 import com.cmc.launcher.ui.particle.tapConfetti
@@ -311,28 +314,35 @@ class MainActivity : BaseAppCompatActivity() {
                                     festivals = festivals
                                 ) {
                                     val confetti = rememberTapConfetti()
+                                    val glass = rememberGlassHost()
                                     Box(
                                         Modifier
                                             .fillMaxSize()
                                             .tapConfetti(confetti)
                                     ) {
-                                        GuideHost(
-                                            guides.mainScreen,
-                                            nextTip = { NextTipLabel(it) }
+                                        androidx.compose.runtime.CompositionLocalProvider(
+                                            LocalGlassHost provides glass
                                         ) {
-                                            Background(
-                                                modifier = Modifier.fillMaxSize(),
-                                                viewModel = backgroundViewModel
-                                            )
-                                            MainScreen(
-                                                screenBackStackModel = screenBackStackModel,
-                                                eventViewModel = eventViewModel,
-                                                modpackImportViewModel = modpackImportViewModel,
-                                                modifyVersionViewModel = modifyVersionViewModel,
-                                                submitError = {
-                                                    errorViewModel.showError(it)
-                                                }
-                                            )
+                                            GuideHost(
+                                                guides.mainScreen,
+                                                nextTip = { NextTipLabel(it) }
+                                            ) {
+                                                Background(
+                                                    modifier = Modifier
+                                                        .fillMaxSize()
+                                                        .glassSource(glass),
+                                                    viewModel = backgroundViewModel
+                                                )
+                                                MainScreen(
+                                                    screenBackStackModel = screenBackStackModel,
+                                                    eventViewModel = eventViewModel,
+                                                    modpackImportViewModel = modpackImportViewModel,
+                                                    modifyVersionViewModel = modifyVersionViewModel,
+                                                    submitError = {
+                                                        errorViewModel.showError(it)
+                                                    }
+                                                )
+                                            }
                                         }
                                         TapConfettiLayer(confetti)
                                     }

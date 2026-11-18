@@ -19,6 +19,8 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.unit.dp
 import com.cmc.launcher.setting.AllSettings
 import com.cmc.launcher.ui.screens.content.elements.backgroundGlass
+import com.cmc.launcher.ui.glass.LocalGlassHost
+import com.cmc.launcher.ui.glass.glassPanel
 import com.cmc.launcher.ui.screens.content.elements.liquidGlassHighlight
 import com.cmc.launcher.ui.theme.cmc.Cmc
 import com.cmc.launcher.ui.theme.cardColor
@@ -60,9 +62,16 @@ fun BackgroundCard(
         elevation = elevation,
         border = border ?: cmcCardBorder(),
     ) {
+        val glass = LocalGlassHost.current
         Column(
             modifier = Modifier
-                .backgroundGlass(blur, colors.containerColor, influencedByBackground)
+                .then(
+                    if (glass != null && influencedByBackground) {
+                        Modifier.glassPanel(glass)
+                    } else {
+                        Modifier.backgroundGlass(blur, colors.containerColor, influencedByBackground)
+                    }
+                )
                 .liquidGlassHighlight(),
             content = content
         )
