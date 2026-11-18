@@ -1166,31 +1166,38 @@ void main() {
     vec3 rgbCaustic = sampleSmoothCaustics(pxCoord);
     col *= (vec3(1.0) + rgbCaustic * 0.22);
 
-    for (int layer = 0; layer < 4; layer++) {
+    for (int layer = 0; layer < 5; layer++) {
         float fl = float(layer);
-        float t4 = fl * 0.3333;
-        float spacing = mix(150.0, 46.0, t4);
-        float speedY = mix(900.0, 2400.0, t4);
-        float lenY = mix(70.0, 240.0, t4);
-        float slant = mix(0.05, 0.16, t4);
-        float bright = mix(0.10, 0.26, t4);
-        float wpx = mix(0.9, 2.2, t4);
+        float t5 = fl * 0.25;
+        float spacing = mix(118.0, 34.0, t5);
+        float baseSpeed = mix(760.0, 2300.0, t5);
+        float lenY = mix(58.0, 210.0, t5);
+        float slant = mix(0.04, 0.17, t5);
+        float bright = mix(0.09, 0.24, t5);
+        float wpx = mix(0.7, 1.9, t5);
         float cellX = floor(fragPx.x / spacing);
-        for (int ox = -1; ox <= 1; ox++) {
+        for (int ox = -2; ox <= 2; ox++) {
             float cx = cellX + float(ox);
             float rnd = hash12(vec2(cx, fl * 37.0 + 7.0));
             float rnd2 = hash12(vec2(cx, fl * 91.0 + 3.0));
-            float xPos = (cx + 0.15 + 0.70 * rnd) * spacing;
-            float phase = fract(uTime * speedY / (uResolution.y + lenY * 3.0) + rnd2);
-            float yPos = -lenY + phase * (uResolution.y + lenY * 3.0);
+            float rnd3 = hash12(vec2(cx, fl * 17.0 + 53.0));
+            if (rnd3 > mix(0.62, 0.30, t5)) continue;
+            float jitter = (rnd - 0.5) * 0.95;
+            float xPos = (cx + 0.5 + jitter) * spacing;
+            float spd = baseSpeed * mix(0.55, 1.75, rnd2);
+            float lenJ = lenY * mix(0.45, 1.7, rnd3);
+            float phase = fract(uTime * spd / (uResolution.y + lenJ * 3.5) + rnd2);
+            float yPos = -lenJ + phase * (uResolution.y + lenJ * 3.5);
             float dyr = fragPx.y - yPos;
-            if (dyr > -lenY && dyr < lenY * 0.18) {
+            if (dyr > -lenJ && dyr < lenJ * 0.22) {
                 float dxr = fragPx.x - (xPos + dyr * slant);
-                float line = exp(-abs(dxr) / wpx);
-                float along = clamp((dyr + lenY) / lenY, 0.0, 1.0);
-                float fade = smoothstep(0.0, 0.22, along) * smoothstep(1.0, 0.55, along);
-                float head = smoothstep(0.12, 0.0, along);
-                col += vec3(0.62, 0.70, 0.82) * line * fade * (bright + head * 0.14);
+                float wj = wpx * mix(0.6, 1.6, rnd);
+                float line = exp(-abs(dxr) / wj);
+                float along = clamp((dyr + lenJ) / lenJ, 0.0, 1.0);
+                float fade = smoothstep(0.0, 0.20, along) * smoothstep(1.0, 0.50, along);
+                float head = smoothstep(0.10, 0.0, along);
+                float bri = bright * mix(0.45, 1.35, rnd2);
+                col += vec3(0.62, 0.70, 0.82) * line * fade * (bri + head * 0.12);
             }
         }
     }
