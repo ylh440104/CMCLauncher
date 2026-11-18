@@ -154,6 +154,8 @@ private class RainGLES32Renderer(private val context: Context) : GLSurfaceView.R
     private var heightTexB = 0
     private var splatTex = 0
     private var causticIntTex = 0
+    private var dropOffsetTex = 0
+    private var dropShadeProgram = 0
 
     private var quadVao = 0
     private var lastNanos = System.nanoTime()
@@ -178,6 +180,7 @@ private class RainGLES32Renderer(private val context: Context) : GLSurfaceView.R
         clearSplatProgram = compileCompute(CLEAR_SPLAT_CS, "clearSplat")
         clearCausticsProgram = compileCompute(CLEAR_CAUSTICS_CS, "clearCaustics")
         causticPhotonProgram = compileCompute(CAUSTICS_PHOTON_CS, "causticPhoton")
+        dropShadeProgram = compileCompute(DROPSHADE_CS, "dropShade")
         renderProgram = compileRender(FULLSCREEN_VS, FINAL_OPTICS_FS, "finalOptics")
 
         val vaos = IntArray(1)
@@ -254,23 +257,30 @@ private class RainGLES32Renderer(private val context: Context) : GLSurfaceView.R
         GLES32.glMemoryBarrier(GLES32.GL_SHADER_IMAGE_ACCESS_BARRIER_BIT or GLES32.GL_TEXTURE_FETCH_BARRIER_BIT)
 
         pingPong = 1 - pingPong
-
-        // 5. FINAL_OPTICS_FS
+        GLES32.glUseProgram(dropShadeProgram)
+        GLES32.glBindImageTexture(2, splatTex, 0, false, 0, GLES32.GL_READ_ONLY, GLES32.GL_R32I)
+        GLES32.glBindImageTexture(3, dropOffsetTex, 0, false, 0, GLES32.GL_WRITE_ONLY, GLES32.GL_RGBA16F)
+        GLES32.glBindBufferBase(GLES32.GL_SHADER_STORAGE_BUFFER, 0, dropSsbo)
+        GLES32.glUniform2f(loc(dropShadeProgram, "uSimSize"), width.toFloat(), height.toFloat())
+        GLES32.glUniform1f(loc(dropShadeProgram, "uUiPlaneZ"), 0.0011f * pxPerMeter)
+        GLES32.glDispatchCompute((width + 15) / 16, (height + 15) / 16, 1)
+        GLES32.glMemoryBarrier(GLES32.GL_SHADER_IMAGE_ACCESS_BARRIER_BIT or GLES32.GL_TEXTURE_FETCH_BARRIER_BIT)
         GLES32.glViewport(0, 0, width, height)
         GLES32.glUseProgram(renderProgram)
 
         GLES32.glActiveTexture(GLES32.GL_TEXTURE0)
         GLES32.glBindTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, uiExternalTexId)
         GLES32.glUniform1i(loc(renderProgram, "uUiTex"), 0)
-
         GLES32.glActiveTexture(GLES32.GL_TEXTURE1)
         GLES32.glBindTexture(GLES32.GL_TEXTURE_2D, outTex)
         GLES32.glUniform1i(loc(renderProgram, "uHeightTex"), 1)
-
         GLES32.glBindImageTexture(2, causticIntTex, 0, false, 0, GLES32.GL_READ_ONLY, GLES32.GL_R32I)
         GLES32.glActiveTexture(GLES32.GL_TEXTURE3)
         GLES32.glBindTexture(GLES32.GL_TEXTURE_2D, splatTex)
         GLES32.glUniform1i(loc(renderProgram, "uSplatTex"), 3)
+        GLES32.glActiveTexture(GLES32.GL_TEXTURE4)
+        GLES32.glBindTexture(GLES32.GL_TEXTURE_2D, dropOffsetTex)
+        GLES32.glUniform1i(loc(renderProgram, "uDropOffset"), 4)
         GLES32.glBindBufferBase(GLES32.GL_SHADER_STORAGE_BUFFER, 3, dropSsbo)
         GLES32.glUniform2f(loc(renderProgram, "uResolution"), width.toFloat(), height.toFloat())
         GLES32.glUniform1f(loc(renderProgram, "uGlassThicknessPx"), 0.004f * pxPerMeter * 0.25f)
@@ -375,6 +385,19 @@ private class RainGLES32Renderer(private val context: Context) : GLSurfaceView.R
         heightTexB = texs[1]
         splatTex = texs[2]
         causticIntTex = texs[3]
+        if (dropOffsetTex != 0) {
+            val old = intArrayOf(dropOffsetTex)
+            GLES32.glDeleteTextures(1, old, 0)
+        }
+        val dot = IntArray(1)
+        GLES32.glGenTextures(1, dot, 0)
+        dropOffsetTex = dot[0]
+        GLES32.glBindTexture(GLES32.GL_TEXTURE_2D, dropOffsetTex)
+        GLES32.glTexStorage2D(GLES32.GL_TEXTURE_2D, 1, GLES32.GL_RGBA16F, width, height)
+        GLES32.glTexParameteri(GLES32.GL_TEXTURE_2D, GLES32.GL_TEXTURE_MIN_FILTER, GLES32.GL_NEAREST)
+        GLES32.glTexParameteri(GLES32.GL_TEXTURE_2D, GLES32.GL_TEXTURE_MAG_FILTER, GLES32.GL_NEAREST)
+        GLES32.glTexParameteri(GLES32.GL_TEXTURE_2D, GLES32.GL_TEXTURE_WRAP_S, GLES32.GL_CLAMP_TO_EDGE)
+        GLES32.glTexParameteri(GLES32.GL_TEXTURE_2D, GLES32.GL_TEXTURE_WRAP_T, GLES32.GL_CLAMP_TO_EDGE)
 
         val fbos = IntArray(1)
         GLES32.glGenFramebuffers(1, fbos, 0)
@@ -1055,24 +1078,14 @@ void main() {
                 float sIn = 1.0 - dot(qq, qq);
                 if (sIn > 0.0) {
                     vec2 px = vec2(float(p.x), float(p.y));
-                    float tirR;
                     float tirG;
-                    float tirB;
-                    vec3 hR = traceLens(px, cen, rad, uUiPlaneZ, 1.3268, tirR);
                     vec3 hG = traceLens(px, cen, rad, uUiPlaneZ, 1.3330, tirG);
-                    vec3 hB = traceLens(px, cen, rad, uUiPlaneZ, 1.3402, tirB);
                     float cov = smoothstep(0.0, 0.30, sIn);
                     if (hG.x < -1.0e5) {
                         outv = vec4(0.0, 0.0, cov * 0.30, 2.0);
                     } else {
                         vec2 offG = hG.xy - px;
-                        vec2 offR = hR.xy - px;
-                        vec2 offB = hB.xy - px;
-                        float tirAvg = (tirR + tirG + tirB) * 0.3333;
-                        outv = vec4(offG, cov, tirAvg);
-                        if (abs(offR.x - offG.x) > 0.02 || abs(offB.x - offG.x) > 0.02) {
-                            outv.x = mix(offG.x, offR.x, 0.35);
-                        }
+                        outv = vec4(offG, cov, tirG);
                     }
                 }
             }
@@ -1093,6 +1106,7 @@ in vec2 vUv;
 out vec4 fragColor;
 uniform samplerExternalOES uUiTex;
 uniform sampler2D uHeightTex;
+uniform sampler2D uDropOffset;
 uniform mat4 uStMatrix;
 layout(r32i, binding = 2) uniform readonly highp iimage2D uCausticBuf;
 uniform vec2 uResolution;
@@ -1144,15 +1158,6 @@ float D_GGX(float NdotH, float roughness) {
     return a2 / (3.14159265 * d * d);
 }
 
-vec3 thinFilmInterference(float dNm, float cosTheta) {
-    vec3 lambda = vec3(680.0, 545.0, 445.0);
-    float nFilm = 1.333;
-    float opl = 2.0 * nFilm * dNm * max(0.25, cosTheta);
-    vec3 phase = 6.2831853 * opl / lambda;
-    vec3 airy = 0.5 + 0.5 * cos(phase);
-    return airy;
-}
-
 vec3 sampleRainyEnv(vec3 R) {
     float up = clamp(-R.y * 0.5 + 0.5, 0.0, 1.0);
     vec3 sky = mix(vec3(0.20, 0.24, 0.30), vec3(0.75, 0.82, 0.89), smoothstep(0.18, 0.52, up));
@@ -1194,21 +1199,52 @@ void main() {
     vec3 rgbCaustic = sampleSmoothCaustics(pxCoord);
     col *= (vec3(1.0) + rgbCaustic * 0.22);
 
-    for (int i = 0; i < 6; i++) {
-        float seed = float(i) * 19.37;
-        float speed = mix(1.0, 2.0, hash12(vec2(seed, 1.0)));
-        float tCycle = fract(uTime * speed + hash12(vec2(seed, 2.0)));
-        float xPos = hash12(vec2(floor(uTime * speed + hash12(vec2(seed, 2.0))), seed)) * uResolution.x;
-        float yTip = tCycle * (uResolution.y + 150.0);
-        float len = mix(60.0, 130.0, hash12(vec2(seed, 3.0)));
-        float dx = abs(fragPx.x - xPos);
-        if (dx < 0.95) {
-            float dy = yTip - (uResolution.y - fragPx.y);
-            if (dy >= 0.0 && dy <= len) {
-                float fade = smoothstep(0.0, 0.14, dy / len) * smoothstep(1.0, 0.08, dy / len) * smoothstep(0.95, 0.10, dx);
-                col += vec3(0.028, 0.033, 0.042) * fade;
+    for (int layer = 0; layer < 4; layer++) {
+        float fl = float(layer);
+        float t4 = fl * 0.3333;
+        float spacing = mix(150.0, 46.0, t4);
+        float speedY = mix(900.0, 2400.0, t4);
+        float lenY = mix(70.0, 240.0, t4);
+        float slant = mix(0.05, 0.16, t4);
+        float bright = mix(0.10, 0.26, t4);
+        float wpx = mix(0.9, 2.2, t4);
+        float cellX = floor(fragPx.x / spacing);
+        for (int ox = -1; ox <= 1; ox++) {
+            float cx = cellX + float(ox);
+            float rnd = hash12(vec2(cx, fl * 37.0 + 7.0));
+            float rnd2 = hash12(vec2(cx, fl * 91.0 + 3.0));
+            float xPos = (cx + 0.15 + 0.70 * rnd) * spacing;
+            float phase = fract(uTime * speedY / (uResolution.y + lenY * 3.0) + rnd2);
+            float yPos = -lenY + phase * (uResolution.y + lenY * 3.0);
+            float dyr = fragPx.y - yPos;
+            if (dyr > -lenY && dyr < lenY * 0.18) {
+                float dxr = fragPx.x - (xPos + dyr * slant);
+                float line = exp(-abs(dxr) / wpx);
+                float along = clamp((dyr + lenY) / lenY, 0.0, 1.0);
+                float fade = smoothstep(0.0, 0.22, along) * smoothstep(1.0, 0.55, along);
+                float head = smoothstep(0.12, 0.0, along);
+                col += vec3(0.62, 0.70, 0.82) * line * fade * (bright + head * 0.14);
             }
         }
+    }
+    vec4 dropInfo = texture(uDropOffset, fragPx / uResolution);
+    if (dropInfo.z > 0.002) {
+        vec2 off = dropInfo.xy;
+        float cov = clamp(dropInfo.z, 0.0, 1.0);
+        vec2 dirN = normalize(off + vec2(1.0e-5, 1.0e-5));
+        float mag = length(off);
+        vec2 samp = fragPx + off;
+        vec3 lensCol = texture(uUiTex, uiUv(clamp(samp / uResolution, vec2(0.001), vec2(0.999)))).rgb;
+        float edge = smoothstep(0.0, 0.55, mag / max(0.6, cov * 22.0));
+        lensCol *= mix(1.0, 0.86, edge);
+        float rim = pow(clamp(mag / max(1.0, cov * 26.0), 0.0, 1.0), 2.4);
+        lensCol *= mix(1.0, 0.80, rim);
+        float hi = exp(-pow(length((fragPx - samp) - dirN * 3.0) / 2.2, 2.0));
+        lensCol += vec3(0.42, 0.45, 0.50) * hi * 0.30;
+        if (dropInfo.w > 1.5) {
+            lensCol = mix(lensCol, sampleRainyEnv(vec3(dirN * 0.5, 1.0)) * 0.86, 0.34);
+        }
+        col = mix(col, lensCol, cov);
     }
 
     float hC = texture(uHeightTex, vUv).r;
@@ -1221,22 +1257,13 @@ void main() {
         vec3 N = normalize(vec3((hL - hR) * 4.5, (hU - hD) * 4.5, 1.0));
         vec3 V_in = vec3(0.0, 0.0, -1.0);
         vec3 V_out = vec3(0.0, 0.0, 1.0);
-        vec3 trR = refract(V_in, N, 1.0 / 1.3268);
         vec3 trG = refract(V_in, N, 1.0 / 1.3330);
-        vec3 trB = refract(V_in, N, 1.0 / 1.3402);
-        vec3 wetCol = vec3(
-            texture(uUiTex, uiUv(vUv + (trR.xy / max(0.14, abs(trR.z))) * (hC * hC) * 62.0 / uResolution)).r,
-            texture(uUiTex, uiUv(vUv + (trG.xy / max(0.14, abs(trG.z))) * (hC * hC) * 62.0 / uResolution)).g,
-            texture(uUiTex, uiUv(vUv + (trB.xy / max(0.14, abs(trB.z))) * (hC * hC) * 62.0 / uResolution)).b
-        );
+        vec2 refr = (trG.xy / max(0.14, abs(trG.z))) * (hC * hC) * 62.0 / uResolution;
+        vec3 wetCol = texture(uUiTex, uiUv(vUv + refr)).rgb;
         float fresW = 0.0204 + 0.9796 * pow(1.0 - clamp(dot(N, V_out), 0.0, 1.0), 5.0);
         vec3 ggxW = vec3(1.0) * min(1.2, D_GGX(max(0.0, dot(N, normalize(normalize(vec3(-0.62, 0.68, 0.39)) + V_out))), 0.06) * 0.030);
         wetCol += ggxW;
         wetCol = mix(wetCol, sampleRainyEnv(reflect(-V_out, N)), clamp(fresW * 0.85, 0.0, 0.7));
-        float filmNm = hC * 5200.0;
-        vec3 irid = thinFilmInterference(filmNm, clamp(dot(N, V_out), 0.35, 1.0));
-        float iridAmt = smoothstep(0.009, 0.050, hC) * (1.0 - smoothstep(0.14, 0.34, hC));
-        wetCol *= (1.0 + (irid - 0.5) * 0.55 * iridAmt);
         col = mix(col, wetCol, smoothstep(0.009, 0.095, hC) * 0.55);
     }
 
