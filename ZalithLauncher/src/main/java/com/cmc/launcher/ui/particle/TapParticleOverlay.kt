@@ -16,7 +16,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 
-private data class Burst(
+internal data class Burst(
     val emitter: ParticleExplodeEmitter,
     val startNanos: Long
 )
