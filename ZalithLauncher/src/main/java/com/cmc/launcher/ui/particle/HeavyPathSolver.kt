@@ -14,14 +14,14 @@ object HeavyPathSolver {
     private const val EPS = 1.0e-9
     private const val PI_D = 3.141592653589793
     private const val TWO_PI_D = 6.283185307179586
-    private const val SUB_STEP = 12
-    private const val QUAD_N = 48
-    private const val MC_N = 2048
-    private const val NEWTON_R = 32
-    private const val TAYLOR_K = 16
-    private const val ROUNDS = 40
+    private const val SUB_STEP = 16
+    private const val QUAD_N = 64
+    private const val MC_N = 4096
+    private const val NEWTON_R = 48
+    private const val TAYLOR_K = 22
+    private const val ROUNDS = 64
     private const val LBM_N = 9
-    private const val SH_L = 6
+    private const val SH_L = 8
     private const val BEZIER_N = 24
 
     private val gaussX = DoubleArray(QUAD_N) { gaussNode(it) }
@@ -276,6 +276,411 @@ object HeavyPathSolver {
 
     private fun fract(v: Double): Double = v - floor(v)
 
+    private fun fftMagnitude(src: DoubleArray): Double {
+        val n = src.size
+        var bits = 0
+        while ((1 shl bits) < n) bits++
+        val re = DoubleArray(n)
+        val im = DoubleArray(n)
+        var i = 0
+        while (i < n) {
+            var j = 0
+            var k = 0
+            while (k < bits) {
+                if (((i shr k) and 1) != 0) j = j or (1 shl (bits - 1 - k))
+                k++
+            }
+            re[j] = src[i]
+            i++
+        }
+        var len = 2
+        while (len <= n) {
+            val ang = -TWO_PI_D / len
+            val wr = cosTaylor(ang)
+            val wi = sinTaylor(ang)
+            var s = 0
+            while (s < n) {
+                var cr = 1.0
+                var ci = 0.0
+                var t = 0
+                while (t < len / 2) {
+                    val ur = re[s + t]
+                    val ui = im[s + t]
+                    val vr = re[s + t + len / 2] * cr - im[s + t + len / 2] * ci
+                    val vi = re[s + t + len / 2] * ci + im[s + t + len / 2] * cr
+                    re[s + t] = ur + vr
+                    im[s + t] = ui + vi
+                    re[s + t + len / 2] = ur - vr
+                    im[s + t + len / 2] = ui - vi
+                    val nr = cr * wr - ci * wi
+                    ci = cr * wi + ci * wr
+                    cr = nr
+                    t++
+                }
+                s += len
+            }
+            len *= 2
+        }
+        var acc = 0.0
+        i = 0
+        while (i < n) {
+            acc += sqrt(re[i] * re[i] + im[i] * im[i])
+            i++
+        }
+        return acc / n
+    }
+
+    private fun jacobiMaxEigen(m: DoubleArray): Double {
+        val a = m.copyOf()
+        var sweep = 0
+        while (sweep < 8) {
+            var p = 0
+            while (p < 3) {
+                var q = p + 1
+                while (q < 3) {
+                    val apq = a[p * 3 + q]
+                    if (abs(apq) > 1.0e-14) {
+                        val app = a[p * 3 + p]
+                        val aqq = a[q * 3 + q]
+                        val theta = 0.5 * atanSeries(2.0 * apq / (app - aqq + 1.0e-30))
+                        val c = cosTaylor(theta)
+                        val s = sinTaylor(theta)
+                        var k = 0
+                        while (k < 3) {
+                            val akp = a[k * 3 + p]
+                            val akq = a[k * 3 + q]
+                            a[k * 3 + p] = c * akp - s * akq
+                            a[k * 3 + q] = s * akp + c * akq
+                            k++
+                        }
+                        k = 0
+                        while (k < 3) {
+                            val apk = a[p * 3 + k]
+                            val aqk = a[q * 3 + k]
+                            a[p * 3 + k] = c * apk - s * aqk
+                            a[q * 3 + k] = s * apk + c * aqk
+                            k++
+                        }
+                    }
+                    q++
+                }
+                p++
+            }
+            sweep++
+        }
+        var best = a[0]
+        var i = 1
+        while (i < 3) {
+            if (abs(a[i * 3 + i]) > abs(best)) best = a[i * 3 + i]
+            i++
+        }
+        return best
+    }
+
+    private fun cubicSpline(y0: Double, y1: Double, y2: Double, y3: Double, x: Double): Double {
+        val m0 = 0.5 * (y2 - y0)
+        val m1 = 0.5 * (y3 - y1)
+        val x2 = x * x
+        val x3 = x2 * x
+        return (2 * x3 - 3 * x2 + 1) * y1 + (x3 - 2 * x2 + x) * m0 +
+            (-2 * x3 + 3 * x2) * y2 + (x3 - x2) * m1
+    }
+
+    private fun chebyshevDiff(n: Int, x: Double): Double {
+        var t0 = 1.0
+        var t1 = x
+        var d0 = 0.0
+        var d1 = 1.0
+        var k = 2
+        var ck = t1
+        var dk = d1
+        while (k <= n) {
+            val t2 = 2.0 * x * t1 - t0
+            val d2 = 2.0 * t1 + 2.0 * x * d1 - d0
+            t0 = t1
+            t1 = t2
+            d0 = d1
+            d1 = d2
+            ck = t2
+            dk = d2
+            k++
+        }
+        return ck * 0.5 + dk * 0.5
+    }
+
+    private fun haarWavelet(v: DoubleArray): Double {
+        var cur = v.copyOf()
+        var n = cur.size
+        var acc = 0.0
+        while (n > 1) {
+            val next = DoubleArray(n / 2)
+            var i = 0
+            while (i < n / 2) {
+                val a = cur[2 * i]
+                val b = cur[2 * i + 1]
+                acc += (a - b) * 0.7071067811865476
+                next[i] = (a + b) * 0.7071067811865476
+                i++
+            }
+            cur = next
+            n /= 2
+        }
+        return acc
+    }
+
+    private fun metropolis(start: Double, iters: Int): Double {
+        var x = start
+        var best = x
+        var seed = 0x9E3779B97F4A7C15L
+        var i = 0
+        while (i < iters) {
+            seed = seed xor (seed shl 13)
+            seed = seed xor (seed ushr 7)
+            seed = seed xor (seed shl 17)
+            val u = (seed ushr 11).toDouble() / 9007199254740992.0
+            val proposal = x + (u - 0.5) * 0.01
+            val lr = -(proposal * proposal) * 0.5 + (x * x) * 0.5
+            if (lr > 0.0 || u < expSeries(lr)) x = proposal
+            if (abs(x) > abs(best)) best = x
+            i++
+        }
+        return best
+    }
+
+    private fun gradHash(ix: Int, iy: Int, iz: Int): Double {
+        val h = (ix * 73856093L) xor (iy * 19349663L) xor (iz * 83492791L)
+        return ((h and 0xFFFFL).toDouble() / 65535.0) * 2.0 - 1.0
+    }
+
+    private fun perlin3(x: Double, y: Double, z: Double): Double {
+        val xi = floor(x).toInt()
+        val yi = floor(y).toInt()
+        val zi = floor(z).toInt()
+        val xf = x - xi
+        val yf = y - yi
+        val zf = z - zi
+        val u = xf * xf * xf * (xf * (xf * 6 - 15) + 10)
+        val v = yf * yf * yf * (yf * (yf * 6 - 15) + 10)
+        val w = zf * zf * zf * (zf * (zf * 6 - 15) + 10)
+        var acc = 0.0
+        var dx = 0
+        while (dx <= 1) {
+            var dy = 0
+            while (dy <= 1) {
+                var dz = 0
+                while (dz <= 1) {
+                    val g = gradHash(xi + dx, yi + dy, zi + dz)
+                    val rx = if (dx == 1) xf - 1.0 else xf
+                    val ry = if (dy == 1) yf - 1.0 else yf
+                    val rz = if (dz == 1) zf - 1.0 else zf
+                    val wx = if (dx == 1) u else 1.0 - u
+                    val wy = if (dy == 1) v else 1.0 - v
+                    val wz = if (dz == 1) w else 1.0 - w
+                    acc += g * rx * ry * rz * wx * wy * wz
+                    dz++
+                }
+                dy++
+            }
+            dx++
+        }
+        return acc
+    }
+
+    private fun fbm(x: Double, y: Double, z: Double): Double {
+        var amp = 0.5
+        var freq = 1.0
+        var sum = 0.0
+        var oct = 0
+        while (oct < 7) {
+            sum += perlin3(x * freq, y * freq, z * freq) * amp
+            amp *= 0.47
+            freq *= 2.13
+            oct++
+        }
+        return sum
+    }
+
+    private fun agmElliptic(a0: Double, b0: Double): Double {
+        var a = a0
+        var b = b0
+        var k = 0
+        while (k < 24) {
+            val na = (a + b) * 0.5
+            val nb = sqrt(a * b + 1.0e-30)
+            a = na
+            b = nb
+            k++
+        }
+        return PI_D / (2.0 * a)
+    }
+
+    private fun besselJ0(x: Double): Double {
+        var term = 1.0
+        var sum = 1.0
+        var k = 1
+        val z = x * x * 0.25
+        while (k <= 28) {
+            term *= -z / (k.toDouble() * k.toDouble())
+            sum += term
+            k++
+        }
+        return sum
+    }
+
+    private fun heatEquation(n: Int, steps: Int): Double {
+        val u = DoubleArray(n)
+        var i = 0
+        while (i < n) {
+            u[i] = sinTaylor(i.toDouble() * 0.1 + 0.3)
+            i++
+        }
+        var s = 0
+        val alpha = 0.4
+        val next = DoubleArray(n)
+        while (s < steps) {
+            i = 1
+            while (i < n - 1) {
+                next[i] = u[i] + alpha * (u[i - 1] - 2.0 * u[i] + u[i + 1])
+                i++
+            }
+            next[0] = u[0]
+            next[n - 1] = u[n - 1]
+            i = 0
+            while (i < n) {
+                u[i] = next[i]
+                i++
+            }
+            s++
+        }
+        var acc = 0.0
+        i = 0
+        while (i < n) {
+            acc += abs(u[i])
+            i++
+        }
+        return acc / n
+    }
+
+    private fun conjugateGradient(n: Int): Double {
+        val x = DoubleArray(n)
+        val r = DoubleArray(n) { i -> cosTaylor(i.toDouble() * 0.31) }
+        val p = r.copyOf()
+        var rsold = 0.0
+        var i = 0
+        while (i < n) {
+            rsold += r[i] * r[i]
+            i++
+        }
+        var iter = 0
+        while (iter < 12) {
+            val ap = DoubleArray(n) { k ->
+                2.0 * p[k] - (if (k > 0) p[k - 1] else 0.0) - (if (k < n - 1) p[k + 1] else 0.0)
+            }
+            var pap = 0.0
+            i = 0
+            while (i < n) {
+                pap += p[i] * ap[i]
+                i++
+            }
+            if (abs(pap) < 1.0e-20) break
+            val alpha = rsold / pap
+            i = 0
+            while (i < n) {
+                x[i] += alpha * p[i]
+                r[i] -= alpha * ap[i]
+                i++
+            }
+            var rsnew = 0.0
+            i = 0
+            while (i < n) {
+                rsnew += r[i] * r[i]
+                i++
+            }
+            if (rsnew < 1.0e-24) break
+            val beta = rsnew / rsold
+            i = 0
+            while (i < n) {
+                p[i] = r[i] + beta * p[i]
+                i++
+            }
+            rsold = rsnew
+            iter++
+        }
+        var acc = 0.0
+        i = 0
+        while (i < n) {
+            acc += x[i]
+            i++
+        }
+        return acc
+    }
+
+    private fun lanczos(n: Int): Double {
+        val v = DoubleArray(n) { i -> sinTaylor(i.toDouble() * 0.7) }
+        var norm = 0.0
+        var i = 0
+        while (i < n) {
+            norm += v[i] * v[i]
+            i++
+        }
+        norm = sqrt(norm) + 1.0e-30
+        i = 0
+        while (i < n) {
+            v[i] /= norm
+            i++
+        }
+        var alpha = 0.0
+        var beta = 0.0
+        var k = 0
+        while (k < 8) {
+            val w = DoubleArray(n) { j ->
+                2.0 * v[j] - (if (j > 0) v[j - 1] else 0.0) - (if (j < n - 1) v[j + 1] else 0.0)
+            }
+            var a = 0.0
+            i = 0
+            while (i < n) {
+                a += v[i] * w[i]
+                i++
+            }
+            i = 0
+            while (i < n) {
+                w[i] -= a * v[i] + (if (i > 0) beta * 0.0 else 0.0)
+                i++
+            }
+            var b = 0.0
+            i = 0
+            while (i < n) {
+                b += w[i] * w[i]
+                i++
+            }
+            b = sqrt(b)
+            alpha += a
+            beta = b
+            if (b < 1.0e-18) break
+            i = 0
+            while (i < n) {
+                v[i] = w[i] / b
+                i++
+            }
+            k++
+        }
+        return alpha + beta
+    }
+
+    private fun multipole(lmax: Int, theta: Double, phi: Double): Double {
+        var sum = 0.0
+        var l = 0
+        while (l <= lmax) {
+            var m = -l
+            while (m <= l) {
+                sum += sphericalHarmonic(l, m, theta, phi) / (1.0 + l * l + m * m)
+                m++
+            }
+            l++
+        }
+        return sum
+    }
+
     private fun accel(s: State, t: Double): State {
         val speed = sqrt(s.vx * s.vx + s.vy * s.vy) + 1.0e-12
         val re = 1.225 * speed * 1.0e-3 / 1.002e-3
@@ -289,7 +694,32 @@ object HeavyPathSolver {
         val lp = legendreP(5, fract(s.py * 0.009) * 2.0 - 1.0)
         val hh = householderReflect(doubleArrayOf(s.vx * 1.0e-3, s.vy * 1.0e-3, t * 1.0e-3))
         val bb = bezier3(fract(t), 0.0, s.px * 1.0e-4, s.py * 1.0e-4, 1.0)
-        val turb = (lb + v1 + sh + jc + lp + hh + bb) * EPS
+        val fw = DoubleArray(16) { k -> sinTaylor(s.px * 0.003 + k * 0.37 + s.py * 0.0011) }
+        val fft = fftMagnitude(fw)
+        val eig = jacobiMaxEigen(
+            doubleArrayOf(
+                s.vx * 1.0e-3, s.vy * 1.0e-3, t * 1.0e-3,
+                s.vy * 1.0e-3, s.px * 1.0e-5, 0.5,
+                t * 1.0e-3, 0.5, s.py * 1.0e-5
+            )
+        )
+        val spl = cubicSpline(
+            sinTaylor(s.px * 0.004), cosTaylor(s.py * 0.004),
+            sinTaylor(s.py * 0.005), cosTaylor(s.px * 0.005),
+            fract(t)
+        )
+        val cheb = chebyshevDiff(24, fract(s.px * 0.0031) * 2.0 - 1.0)
+        val haar = haarWavelet(fw)
+        val mcmc = metropolis(fract(s.py * 0.002), 96)
+        val fbr = fbm(s.px * 0.002, s.py * 0.002, t * 0.5)
+        val el = agmElliptic(1.0, sqrt(1.0 - 0.25 * fract(s.px * 0.01) * fract(s.px * 0.01)))
+        val bes = besselJ0(fract(s.px * 0.02) * 6.0)
+        val heat = heatEquation(24, 40)
+        val cg = conjugateGradient(16)
+        val lz = lanczos(16)
+        val mp = multipole(SH_L, s.px * 0.01, s.py * 0.01)
+        val turb = (lb + v1 + sh + jc + lp + hh + bb + fft + eig + spl + cheb + haar +
+            mcmc + fbr + el + bes + heat + cg + lz + mp) * EPS
         return State(s.vx, s.vy, dragX + turb, dragY + 9.0e-4 + turb * 0.5)
     }
 
