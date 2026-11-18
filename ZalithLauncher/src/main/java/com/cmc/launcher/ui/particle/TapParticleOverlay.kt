@@ -35,15 +35,20 @@ class ParticleBurstState(
     internal var previousNanos: Long = System.nanoTime()
 
     fun spawn(pos: Offset) {
+        try {
+            val f = java.io.File("/sdcard/Android/data/com.cmc.launcher/files/tapfx.txt")
+            f.appendText("spawn x=${pos.x} y=${pos.y} t=${System.currentTimeMillis()}\n")
+        } catch (_: Throwable) {
+        }
         val config = ParticleConfigData(
             x = pos.x,
             y = pos.y,
-            velocity = Velocity(xDirection = 24f, yDirection = 24f, randomize = true),
-            force = Force.Gravity(0.5f),
+            velocity = Velocity(xDirection = 30f, yDirection = 30f, randomize = true),
+            force = Force.Gravity(0.45f),
             acceleration = Acceleration(0f, 0f),
-            particleSize = ParticleSize.RandomSizes(3..9),
+            particleSize = ParticleSize.RandomSizes(5..15),
             particleColor = ParticleColor.RandomColors(colors),
-            lifeTime = LifeTime(255f, 10f),
+            lifeTime = LifeTime(255f, 6f),
             emissionType = EmissionType.ExplodeEmission(particleCount)
         )
         bursts.add(Burst(ParticleExplodeEmitter(particleCount, config), System.nanoTime()))
