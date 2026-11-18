@@ -3,6 +3,7 @@ package com.cmc.launcher.ui.particle
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -20,82 +21,72 @@ private data class Burst(
     val startNanos: Long
 )
 
-@Composable
-fun TapParticleOverlay(
-    modifier: Modifier = Modifier,
-    particleCount: Int = 26,
-    colors: List<Color> = listOf(
+class ParticleBurstState(
+    private val particleCount: Int = 26,
+    private val colors: List<Color> = listOf(
         Color(0xFF7FD4FF),
         Color(0xFFB39DFF),
-        Color(0xFFFFFFFF),
-        Color(0xFF8FF0D0)
-    ),
-    burstLifeNanos: Long = 1_100_000_000L
+        Color(0xFF8FF0D0),
+        Color(0xFFFFD98A)
+    )
 ) {
-    val bursts = remember { mutableStateListOf<Burst>() }
-    var tick by remember { mutableStateOf(0L) }
-    var previousNanos by remember { mutableStateOf(System.nanoTime()) }
+    internal val bursts = mutableStateListOf<Burst>()
+    internal var frame by mutableStateOf(0L)
+    internal var previousNanos: Long = System.nanoTime()
 
-    androidx.compose.runtime.LaunchedEffect(Unit) {
-        while (true) {
-            withFrameNanos { now ->
-                val dt = ((now - previousNanos) / 1.0E7).toFloat()
-                previousNanos = now
-                if (bursts.isNotEmpty()) {
-                    val dead = ArrayList<Burst>()
-                    for (b in bursts) {
-                        b.emitter.update(dt)
-                        if (b.emitter.particlePool.isEmpty()) dead.add(b)
-                    }
-                    if (dead.isNotEmpty()) bursts.removeAll { it in dead }
-                    bursts.removeAll { now - it.startNanos > burstLifeNanos }
-                    tick = now
-                }
-            }
-        }
+    fun spawn(pos: Offset) {
+        val config = ParticleConfigData(
+            x = pos.x,
+            y = pos.y,
+            velocity = Velocity(xDirection = 24f, yDirection = 24f, randomize = true),
+            force = Force.Gravity(0.5f),
+            acceleration = Acceleration(0f, 0f),
+            particleSize = ParticleSize.RandomSizes(3..9),
+            particleColor = ParticleColor.RandomColors(colors),
+            lifeTime = LifeTime(255f, 10f),
+            emissionType = EmissionType.ExplodeEmission(particleCount)
+        )
+        bursts.add(Burst(ParticleExplodeEmitter(particleCount, config), System.nanoTime()))
     }
+}
 
-    Canvas(
-        modifier = modifier
-            .fillMaxSize()
-            .pointerInput(Unit) {
-                awaitPointerEventScope {
-                    while (true) {
-                        val event = awaitPointerEvent(PointerEventPass.Final)
-                        for (c in event.changes) {
-                            if (c.pressed && !c.previousPressed) {
-                                spawnBurst(bursts, c.position, particleCount, colors)
-                            }
-                        }
-                    }
+fun Modifier.tapParticles(state: ParticleBurstState): Modifier = this.pointerInput(state) {
+    awaitPointerEventScope {
+        while (true) {
+            val event = awaitPointerEvent(PointerEventPass.Initial)
+            for (c in event.changes) {
+                if (c.pressed && !c.previousPressed) {
+                    state.spawn(c.position)
                 }
             }
-    ) {
-        @Suppress("UNUSED_EXPRESSION")
-        tick
-        for (b in bursts) {
-            b.emitter.render(this)
         }
     }
 }
 
-private fun spawnBurst(
-    bursts: MutableList<Burst>,
-    pos: Offset,
-    count: Int,
-    colors: List<Color>
-) {
-    val config = ParticleConfigData(
-        x = pos.x,
-        y = pos.y,
-        velocity = Velocity(xDirection = 26f, yDirection = 26f, randomize = true),
-        force = Force.Gravity(0.55f),
-        acceleration = Acceleration(0f, 0f),
-        particleSize = ParticleSize.RandomSizes(2..7),
-        particleColor = ParticleColor.RandomColors(colors),
-        lifeTime = LifeTime(255f, 11f),
-        emissionType = EmissionType.ExplodeEmission(count)
-    )
-    val emitter = ParticleExplodeEmitter(count, config)
-    bursts.add(Burst(emitter, System.nanoTime()))
+@Composable
+fun rememberParticleBurstState(): ParticleBurstState = remember { ParticleBurstState() }
+
+@Composable
+fun ParticleCanvas(state: ParticleBurstState, modifier: Modifier = Modifier) {
+    LaunchedEffect(state) {
+        while (true) {
+            withFrameNanos { now ->
+                val dt = ((now - state.previousNanos) / 1.0E7).toFloat()
+                state.previousNanos = now
+                if (state.bursts.isNotEmpty()) {
+                    for (b in state.bursts) {
+                        b.emitter.update(dt)
+                    }
+                    state.bursts.removeAll { it.emitter.particlePool.isEmpty() }
+                    state.frame = now
+                }
+            }
+        }
+    }
+    Canvas(modifier.fillMaxSize()) {
+        state.frame
+        for (b in state.bursts) {
+            b.emitter.render(this)
+        }
+    }
 }

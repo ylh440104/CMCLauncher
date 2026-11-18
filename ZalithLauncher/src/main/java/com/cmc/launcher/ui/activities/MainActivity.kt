@@ -55,7 +55,9 @@ import com.cmc.launcher.ui.screens.NestedNavKey
 import com.cmc.launcher.ui.screens.NormalNavKey
 import com.cmc.launcher.ui.screens.content.elements.Background
 import com.cmc.launcher.ui.screens.content.elements.RainGLES32OverlayLayout
-import com.cmc.launcher.ui.particle.TapParticleOverlay
+import com.cmc.launcher.ui.particle.ParticleCanvas
+import com.cmc.launcher.ui.particle.rememberParticleBurstState
+import com.cmc.launcher.ui.particle.tapParticles
 import com.cmc.launcher.ui.screens.content.elements.LaunchGameOperation
 import com.cmc.launcher.ui.screens.content.elements.TitleTaskFlowDialog
 import com.cmc.launcher.ui.screens.content.navigateToLogView
@@ -308,7 +310,12 @@ class MainActivity : BaseAppCompatActivity() {
                                     backgroundViewModel = backgroundViewModel,
                                     festivals = festivals
                                 ) {
-                                    Box(Modifier.fillMaxSize()) {
+                                    val particleState = rememberParticleBurstState()
+                                    Box(
+                                        Modifier
+                                            .fillMaxSize()
+                                            .tapParticles(particleState)
+                                    ) {
                                         GuideHost(
                                             guides.mainScreen,
                                             nextTip = { NextTipLabel(it) }
@@ -327,7 +334,7 @@ class MainActivity : BaseAppCompatActivity() {
                                                 }
                                             )
                                         }
-                                        TapParticleOverlay()
+                                        ParticleCanvas(particleState)
                                     }
                                 }
                             }
