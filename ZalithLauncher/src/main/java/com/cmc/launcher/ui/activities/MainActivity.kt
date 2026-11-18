@@ -55,9 +55,9 @@ import com.cmc.launcher.ui.screens.NestedNavKey
 import com.cmc.launcher.ui.screens.NormalNavKey
 import com.cmc.launcher.ui.screens.content.elements.Background
 import com.cmc.launcher.ui.screens.content.elements.RainGLES32OverlayLayout
-import com.cmc.launcher.ui.particle.ParticleCanvas
-import com.cmc.launcher.ui.particle.rememberParticleBurstState
-import com.cmc.launcher.ui.particle.tapParticles
+import com.cmc.launcher.ui.particle.TapConfettiLayer
+import com.cmc.launcher.ui.particle.rememberTapConfetti
+import com.cmc.launcher.ui.particle.tapConfetti
 import com.cmc.launcher.ui.screens.content.elements.LaunchGameOperation
 import com.cmc.launcher.ui.screens.content.elements.TitleTaskFlowDialog
 import com.cmc.launcher.ui.screens.content.navigateToLogView
@@ -310,11 +310,11 @@ class MainActivity : BaseAppCompatActivity() {
                                     backgroundViewModel = backgroundViewModel,
                                     festivals = festivals
                                 ) {
-                                    val particleState = rememberParticleBurstState()
+                                    val confetti = rememberTapConfetti()
                                     Box(
                                         Modifier
                                             .fillMaxSize()
-                                            .tapParticles(particleState)
+                                            .tapConfetti(confetti)
                                     ) {
                                         GuideHost(
                                             guides.mainScreen,
@@ -334,7 +334,7 @@ class MainActivity : BaseAppCompatActivity() {
                                                 }
                                             )
                                         }
-                                        ParticleCanvas(particleState)
+                                        TapConfettiLayer(confetti)
                                     }
                                 }
                             }

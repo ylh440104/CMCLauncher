@@ -336,6 +336,7 @@ dependencies {
     implementation(libs.material.color.utilities)
     implementation(libs.materialKolor)
     implementation(libs.reorderable)
+    implementation("nl.dionsegijn:konfetti-compose:2.2.0")
     implementation(libs.richtext.commonmark)
     implementation(libs.richtext.ui)
     implementation(libs.richtext.ui.material3)
