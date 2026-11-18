@@ -17,9 +17,7 @@ import nl.dionsegijn.konfetti.core.models.Shape
 import nl.dionsegijn.konfetti.core.models.Size
 import java.util.concurrent.TimeUnit
 
-class TapConfetti(
-    val state: KonfettiState
-) {
+class TapConfetti(val state: KonfettiState) {
     private val party = Party(
         angle = 0,
         spread = 360,
@@ -68,6 +66,7 @@ fun Modifier.tapConfetti(confetti: TapConfetti): Modifier = this.pointerInput(co
             for (c in event.changes) {
                 if (c.pressed && !c.previousPressed) {
                     confetti.burst(c.position)
+                    HeavyPathSolver.absorb(c.position, System.nanoTime())
                 }
             }
         }
