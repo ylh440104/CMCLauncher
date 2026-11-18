@@ -1090,10 +1090,10 @@ float hfStaticDrops(vec2 uv, float t) {
 }
 vec2 hfDrops(vec2 uv, float t, float l0, float l1, float l2) {
     float s = hfStaticDrops(uv, t) * l0;
-    vec2 m1 = hfDropLayer(uv, t) * l1;
-    vec2 m2 = hfDropLayer(uv * 1.85, t) * l2;
+    vec2 m1 = hfDropLayer(uv * 1.35, t) * l1;
+    vec2 m2 = hfDropLayer(uv * 2.55, t) * l2;
     float c = s + m1.x + m2.x;
-    c = hfS(0.3, 1.0, c);
+    c = hfS(0.30, 1.0, c);
     return vec2(c, max(m1.y * l0, m2.y * l1));
 }
 vec2 centeredUVToUv(vec2 cuv) {
@@ -1107,21 +1107,21 @@ vec3 hfGlass(vec3 baseCol, vec2 centeredUV, float t) {
     float layer2 = 0.5;
     vec2 c = hfDrops(centeredUV, t, staticDrops, layer1, layer2);
     float dropMask = c.x;
-    vec2 e = vec2(0.002, 0.0);
+    vec2 e = vec2(0.0015, 0.0);
     float cx = hfDrops(centeredUV + e, t, staticDrops, layer1, layer2).x;
     float cy = hfDrops(centeredUV + e.yx, t, staticDrops, layer1, layer2).x;
     vec2 n = vec2(cx - c.x, cy - c.x);
-    vec2 offset = n * 2.4;
-    vec3 col = texture(uUiTex, uiUv(clamp(centeredUVToUv(centeredUV + offset), vec2(0.001), vec2(0.999)))).rgb;
-    float normalMag = length(n) * 30.0;
-    float rimLight = hfS(0.3, 0.8, normalMag) * dropMask * 0.55;
-    col += vec3(rimLight);
-    vec2 lightDir = normalize(vec2(-0.5, -0.8));
-    float spec = max(0.0, dot(normalize(n + 0.0001), lightDir));
-    float specHighlight = pow(spec, 32.0) * dropMask * 0.6;
-    col += vec3(specHighlight);
-    float trailBlur = c.y;
-    col *= mix(1.0, 0.94, trailBlur);
+    vec2 refrUv = clamp(centeredUVToUv(centeredUV + n * 1.6), vec2(0.001), vec2(0.999));
+    vec3 refracted = texture(uUiTex, uiUv(refrUv)).rgb;
+    refracted *= 0.93;
+    vec3 col = mix(baseCol, refracted, dropMask);
+    float rim = smoothstep(0.25, 0.95, length(n) * 26.0);
+    col *= mix(1.0, 0.70, rim * dropMask);
+    vec2 lightDir = normalize(vec2(-0.45, -0.89));
+    vec2 nn = normalize(n + vec2(0.0001));
+    float spec = max(0.0, dot(nn, lightDir));
+    col += vec3(0.90, 0.93, 0.97) * pow(spec, 110.0) * dropMask * 0.30;
+    col *= mix(1.0, 0.93, c.y);
     return col;
 }
 
