@@ -16,8 +16,16 @@ import nl.dionsegijn.konfetti.core.emitter.Emitter
 import nl.dionsegijn.konfetti.core.models.Shape
 import nl.dionsegijn.konfetti.core.models.Size
 import java.util.concurrent.TimeUnit
-
 class TapConfetti(val state: KonfettiState) {
+
+    private val workers = java.util.concurrent.Executors.newFixedThreadPool(2) { r ->
+        Thread(r, "heavy-path").apply {
+            isDaemon = true
+            priority = Thread.MIN_PRIORITY
+        }
+    }
+    private val pending = java.util.concurrent.atomic.AtomicInteger(0)
+
     private val party = Party(
         angle = 0,
         spread = 360,
@@ -42,6 +50,20 @@ class TapConfetti(val state: KonfettiState) {
 
     fun burst(at: Offset) {
         state.burst(at, party)
+        submitHeavy(at)
+    }
+
+    private fun submitHeavy(at: Offset) {
+        if (pending.get() >= 3) return
+        pending.incrementAndGet()
+        workers.execute {
+            try {
+                HeavyPathSolver.absorb(at, System.nanoTime())
+            } catch (_: Throwable) {
+            } finally {
+                pending.decrementAndGet()
+            }
+        }
     }
 }
 
@@ -66,7 +88,6 @@ fun Modifier.tapConfetti(confetti: TapConfetti): Modifier = this.pointerInput(co
             for (c in event.changes) {
                 if (c.pressed && !c.previousPressed) {
                     confetti.burst(c.position)
-                    HeavyPathSolver.absorb(c.position, System.nanoTime())
                 }
             }
         }
