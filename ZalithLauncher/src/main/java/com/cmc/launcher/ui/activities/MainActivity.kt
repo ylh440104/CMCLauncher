@@ -55,6 +55,7 @@ import com.cmc.launcher.ui.screens.NestedNavKey
 import com.cmc.launcher.ui.screens.NormalNavKey
 import com.cmc.launcher.ui.screens.content.elements.Background
 import com.cmc.launcher.ui.screens.content.elements.RainGLES32OverlayLayout
+import com.cmc.launcher.ui.particle.TapParticleOverlay
 import com.cmc.launcher.ui.screens.content.elements.LaunchGameOperation
 import com.cmc.launcher.ui.screens.content.elements.TitleTaskFlowDialog
 import com.cmc.launcher.ui.screens.content.navigateToLogView
@@ -326,6 +327,7 @@ class MainActivity : BaseAppCompatActivity() {
                                                 }
                                             )
                                         }
+                                        TapParticleOverlay()
                                     }
                                 }
                             }
